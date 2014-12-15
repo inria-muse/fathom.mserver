@@ -26,7 +26,7 @@ db.on("error", function (err) {
 var app = express();
 
 // we'll be behind a proxy
-//app.enable('trust proxy');
+app.enable('trust proxy');
 
 // middleware
 app.use(bodyParser.json());
