@@ -1,12 +1,13 @@
 {
   "apps" : [{
-    "name"         : "fathom-cache",
+    "name"         : "fathomapi-cache",
     "script"       : "cachemgr.js",
-    "error_file"   : "/var/log/pm2/fathom-cache-error.log",
-    "out_file"     : "/var/log/pm2/fathom-cache.log",
-    "pid_file"     : "/var/run/pm2/fathom-cache",
-    "run_as_user"  : "apietila",	
-    "run_as_group" : "apietila",
+    "error_file"   : "/home/nodeapp/logs/fathomapi-cache-error.log",
+    "out_file"     : "/home/nodeapp/logs/fathomapi-cache.log",
+    "pid_file"     : "/home/nodeapp/pids/fathomapi-cache",
+    "run_as_user"  : "nodeapp",	
+    "run_as_group" : "nodeapp",
+    "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
 	"DEBUG"    : "cachemgr"
@@ -17,11 +18,12 @@
     "args"         : "['-p', '3004']",
     "instances"    : "2",
     "exec_mode"    : "cluster_mode",
-    "error_file"   : "/var/log/pm2/fathomapi-error.log",
-    "out_file"     : "/var/log/pm2/fathomapi.log",
-    "pid_file"     : "/var/run/pm2/fathomapi",
-    "run_as_user"  : "apietila",	
-    "run_as_group" : "apietila",
+    "error_file"   : "/home/nodeapp/logs/fathomapi-error.log",
+    "out_file"     : "/home/nodeapp/logs/fathomapi.log",
+    "pid_file"     : "/home/nodeapp/pids/fathomapi",
+    "run_as_user"  : "nodeapp",	
+    "run_as_group" : "nodeapp",
+    "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
 	"DEBUG"    : "server"
