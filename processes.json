@@ -1,0 +1,30 @@
+{
+  "apps" : [{
+    "name"         : "fathom-cache",
+    "script"       : "cachemgr.js",
+    "error_file"   : "/var/log/pm2/fathom-cache-error.log",
+    "out_file"     : "/var/log/pm2/fathom-cache.log",
+    "pid_file"     : "/var/run/pm2/fathom-cache",
+    "run_as_user"  : "apietila",	
+    "run_as_group" : "apietila",
+    "env": {
+        "NODE_ENV" : "production",
+	"DEBUG"    : "cachemgr"
+    }
+  },{
+    "name"         : "fathomapi",
+    "script"       : "server.js",
+    "args"         : "['-p', '3004']",
+    "instances"    : "2",
+    "exec_mode"    : "cluster_mode",
+    "error_file"   : "/var/log/pm2/fathomapi-error.log",
+    "out_file"     : "/var/log/pm2/fathomapi.log",
+    "pid_file"     : "/var/run/pm2/fathomapi",
+    "run_as_user"  : "apietila",	
+    "run_as_group" : "apietila",
+    "env": {
+        "NODE_ENV" : "production",
+	"DEBUG"    : "server"
+    }
+  }]
+}

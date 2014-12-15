@@ -1,0 +1,19 @@
+{
+  "name": "fathomapi",
+  "description": "Fathom REST API.",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "pm2 start processes.json",
+    "stop": "pm2 stop processes.json; pm2 delete processes.json;"
+  },
+  "dependencies": {
+    "ipaddr.js" : "latest",
+    "debug": "latest", 
+    "express": "4.x",
+    "body-parser" : "latest",
+    "redis": "*",
+    "minimist": "latest",
+    "underscore": "latest"
+  }
+}
