@@ -6,6 +6,15 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var ipaddr = require('ipaddr.js');
 var exec = require('child_process').exec;
+var whois = require('node-whois');
+
+// whois params
+var whoisconf = {
+    "server":  "",
+    "follow":  2,
+    "timeout": 0,
+    "verbose": false
+}
 
 if (argv.h) {
     console.log("Usage: " + process.argv[0] + 
@@ -63,6 +72,33 @@ app.all('/mac/:mac', function(req, res){
     });
 });
 
+var parsewhois = function(data) {
+    var res = { netblock : undefined, asblock : undefined };
+    var blocks = data.split('\n\n');
+    _.each(blocks,function(b) {
+	var tmpblock = {};
+	var lines = b.split('\n');
+	_.each(lines, function(line) {
+	    if (line.length <= 1 || line.indexOf('%')==0 || 
+		line.indexOf(': ')<0) {
+		return;
+	    }
+	    var tmp = line.split(': ');
+	    var k = tmp[0].trim();
+	    var v = tmp[1].trim();
+	    if (tmpblock[k])
+		tmpblock[k] += ';' + v;
+	    else
+		tmpblock[k] = v;
+	});
+	if (tmpblock.origin)
+	    res.asblock = tmpblock;
+	else if (tmpblock.inetnum)
+	    res.netblock = tmpblock;
+    });
+    return res;
+};
+
 var handlegeo = function(req, res, ip) {
     debug("geolookup for " + ip);
  
@@ -97,7 +133,12 @@ var handlegeo = function(req, res, ip) {
 		obj.lon = parseFloat(tmp[5].trim());
 	    }
 	});
-	res.status(200).send(obj);
+
+	whois.lookup(ip, function(err, data) {
+	    if (!err && data)
+		obj.whois = parsewhois(data);
+	    res.status(200).send(obj);
+	});
     }
 
     if (!ip || ip.length<=0 || ip === "127.0.0.1") {
