@@ -1,4 +1,4 @@
-var debug = require('debug')('server')
+var debug = require('debug')('mserver')
 var _ = require('underscore');
 var argv = require('minimist')(process.argv.slice(2));
 var redis = require('redis');
@@ -7,14 +7,8 @@ var bodyParser = require('body-parser');
 var ipaddr = require('ipaddr.js');
 var exec = require('child_process').exec;
 var whois = require('node-whois');
-
-// whois params
-var whoisconf = {
-    "server":  "",
-    "follow":  2,
-    "timeout": 0,
-    "verbose": false
-}
+var utils = require('utils');
+var os = require('os');
 
 if (argv.h) {
     console.log("Usage: " + process.argv[0] + 
@@ -72,33 +66,6 @@ app.all('/mac/:mac', function(req, res){
     });
 });
 
-var parsewhois = function(data) {
-    var res = { netblock : undefined, asblock : undefined };
-    var blocks = data.split('\n\n');
-    _.each(blocks,function(b) {
-	var tmpblock = {};
-	var lines = b.split('\n');
-	_.each(lines, function(line) {
-	    if (line.length <= 1 || line.indexOf('%')==0 || 
-		line.indexOf(': ')<0) {
-		return;
-	    }
-	    var tmp = line.split(': ');
-	    var k = tmp[0].trim();
-	    var v = tmp[1].trim();
-	    if (tmpblock[k])
-		tmpblock[k] += ';' + v;
-	    else
-		tmpblock[k] = v;
-	});
-	if (tmpblock.origin)
-	    res.asblock = tmpblock;
-	else if (tmpblock.inetnum)
-	    res.netblock = tmpblock;
-    });
-    return res;
-};
-
 var handlegeo = function(req, res, ip) {
     debug("geolookup for " + ip);
  
@@ -134,32 +101,127 @@ var handlegeo = function(req, res, ip) {
 	    }
 	});
 
+	// get whois data
 	whois.lookup(ip, function(err, data) {
 	    if (!err && data)
-		obj.whois = parsewhois(data);
-	    res.status(200).send(obj);
+		obj.whois = utils.parsewhois(data);
+
+	    // reverse dnsname for the IP
+	    exec('host ' + ip, function(error, stdout, stderr) {
+		if (!error && stdout) {
+		    var tokens = stdout.trim().split(' ');
+		    obj.dnsname = (tokens.lenght > 1 ? tokens[tokens.length-1] : undefined);
+		}
+		res.status(200).send(obj);
+	    });
 	});
     }
-
+    
     if (!ip || ip.length<=0 || ip === "127.0.0.1") {
 	res.status(500).send({ error : 'invalid ip: ' + ip});
     } else if (ipaddr.IPv4.isValid(ip)) {
-	var child = exec('geoiplookup ' + ip, handler);  
+	exec('geoiplookup ' + ip, handler);  
     } else if (ipaddr.IPv6.isValid(ip)) {
-	var child = exec('geoiplookup6 ' + ip, handler);
+	exec('geoiplookup6 ' + ip, handler);
     } else {
 	res.status(500).send({ error : 'invalid ip: ' + ip });
 	return;
     }
 };
 
+// resolve client's public IP (req.ip)
 app.all('/geo', function(req, res){
     return handlegeo(req, res, req.ip);
 });
 
-app.all('/geo/:ip', function(req, res){
-    return handlegeo(req, res, req.params.ip || req.ip);
+// resolve any requested IP
+//app.all('/geo/:ip', function(req, res){
+//    return handlegeo(req, res, req.params.ip);
+//});
+
+// run reverse traceroute (to req.ip)
+app.all('/tr', function(req, res){
+    var cmd = 'mtr'; 
+    cmd += _.map(req.params, function(v,k) {
+	return '-'+k+' '+v;
+    }).join(' ');
+    if (cmd.indexOf('[;,$]')) {
+	res.status(500).send({ error : 'invalid request'});
+    }
+    cmd += ' ' + req.ip;
+
+    exec(cmd, function(err, stdout, stderr) {
+    });
 });
+
+// run reverse ping (to req.ip)
+app.all('/ping', function(req, res){
+    var cmd = 'ping'; 
+    if (!req.params.c)
+	req.params.c = 5;
+
+    cmd += _.map(req.params, function(v,k) {
+	return '-'+k+' '+v;
+    }).join(' ');
+    if (cmd.indexOf('[;,$]')) {
+	res.status(500).send({ error : 'invalid request'});
+    }
+    cmd += ' ' + req.ip;
+
+    var result = {
+	ts : Date.now(),
+	cmd : 'ping',
+	cmdline : cmd,
+	os : os.platform(),
+	result : undefined
+    };
+
+    var child = exec(cmd, function(err, stdout, stderr) {
+	if (err || !stdout || stdout.length < 1) {
+	    result.error = { 
+		type : 'execerror'
+		message : stderr || stdout,
+		code : err,
+		cmd : 'ping'
+	    };
+	} else {
+	    var lines = (stdout ? stdout.trim() : "").split("\n");
+	    var r = {
+		dst: req.ip,
+		dst_ip : req.ip,
+		count : req.params['c'],        // -c
+		bytes : req.params['b'],        // -b or default
+		ttl : req.params['t'], 
+		lost : 0,                       // lost pkts
+		rtt : [],                       // results
+		stats : undefined,              // rtt stats
+		time_exceeded_from : undefined, // IP of sender
+		alt : []                        // full responses
+	    };
+
+	    for (var i = 0; i < lines.length; i++) {	    
+		var line = lines[i].trim().replace(/\s+/g, ' ').split(' ');
+		if (lines[i].toLowerCase().indexOf('time to live exceeded')>=0) {
+		    r.time_exceeded_from = line[1];
+		    break;		    
+		} else if (line[0] === 'PING') {
+		    r.dst_ip = line[2].replace(/\(|\)|:/gi, '');
+		    r.bytes = parseInt((line[3].indexOf('\(') < 0 ? line[3] : line[3].substring(0,line[3].indexOf('\('))));
+		} else if (line[1] === 'bytes') {
+		    for (var j = 2; j < line.length; j++) {
+			if (line[j].indexOf('time=') === 0) {
+			    var tmp = line[j].split('=');
+			    r.rtt.push(parseFloat(tmp[1]));
+			}
+		    }
+		}
+	    }
+	    result.result = r;
+	}
+	res.status(200).send(result);
+    });
+});
+
 
 // startup
 var server = app.listen(port, function() {
