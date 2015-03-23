@@ -143,15 +143,23 @@ app.all('/geo', function(req, res){
 //    return handlegeo(req, res, req.params.ip);
 //});
 
-// run reverse traceroute (to req.ip)
-app.all('/mtr', function(req, res){
-    var cmd = 'mtr '; 
-
+// build sanitized sys exec command string
+var buildcmd = function(cmd, args, tail) {
+    cmd += ' ';
     cmd += _.map(req.query, function(v,k) {
 	var tmp = '-'+k+' '+v;
 	return "'" + tmp.replace(/'/g,"\'") + "'";
     }).join(' ');
-    cmd += ' --raw ' + req.ip;
+
+    if (tail)
+	cmd += ' ' + tail;
+
+    return cmd.replace(/\s+/g, ' ');
+}
+
+// run reverse traceroute (to req.ip)
+app.all('/mtr', function(req, res){
+    var cmd = buildcmd('mtr',req.query,'--raw '+req.ip); 
 
     var result = {
 	ts : Date.now(),
@@ -220,16 +228,11 @@ app.all('/mtr', function(req, res){
 
 // run reverse ping (to req.ip)
 app.all('/ping', function(req, res){
-    var cmd = 'ping '; 
-
+    // default param for number of pings
     if (!req.query.c)
 	req.query.c = 5;
 
-    cmd += _.map(req.query, function(v,k) {
-	var tmp = '-'+k+' '+v;
-	return "'" + tmp.replace(/'/g,"\'") + "'";
-    }).join(' ');
-    cmd += ' ' + req.ip;
+    var cmd = buildcmd('ping',req.query,req.ip); 
 
     var result = {
 	ts : Date.now(),
