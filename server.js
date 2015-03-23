@@ -1,6 +1,7 @@
 var os = require('os');
 var exec = require('child_process').exec;
 
+// external dependencies
 var debug = require('debug')('mserver')
 var _ = require('underscore');
 var argv = require('minimist')(process.argv.slice(2));
@@ -10,16 +11,26 @@ var bodyParser = require('body-parser');
 var ipaddr = require('ipaddr.js');
 var whois = require('node-whois');
 
+// helpers
 var utils = require('./utils');
 
+// args
 if (argv.h) {
     console.log("Usage: " + process.argv[0] + 
 		" " + process.argv[1] + 
 		" [-p <port>]");
     process.exit(0);
 }
-
 var port = argv.p || 3000;
+
+// resource limits (per instance -- check processes.json for max instance)
+var MAX_MTR = process.env['MAX_MTR'] || 10;
+var MAX_PING = process.env['MAX_PING'] || 10;
+
+// mtr processes
+var curr_mtr = 0;
+// ping processes
+var curr_ping = 0;
 
 // redis client
 var db = redis.createClient();
@@ -160,6 +171,13 @@ var buildcmd = function(cmd, args, tail) {
 // run reverse traceroute (to req.ip)
 app.all('/mtr', function(req, res){
     var cmd = buildcmd('mtr',req.query,'--raw '+req.ip); 
+    debug(cmd);
+
+    if (curr_mtr >= MAX_MTR) {
+	debug('rejecting mtr request from ' + req.ip);
+	res.status(503); // unavailable
+	return;
+    }
 
     var result = {
 	ts : Date.now(),
@@ -168,7 +186,9 @@ app.all('/mtr', function(req, res){
 	os : os.platform()
     };
 
+    curr_mtr += 1;
     exec(cmd, function(err, stdout, stderr) {
+	curr_mtr -= 1;
 	if (err || !stdout || stdout.length < 1) {
 	    result.error = { 
 		type : 'execerror',
@@ -233,6 +253,13 @@ app.all('/ping', function(req, res){
 	req.query.c = 5;
 
     var cmd = buildcmd('ping',req.query,req.ip); 
+    debug(cmd);
+
+    if (curr_mtr >= MAX_PING) {
+	debug('rejecting ping request from ' + req.ip);
+	res.status(503); // unavailable
+	return;
+    }
 
     var result = {
 	ts : Date.now(),
@@ -241,7 +268,9 @@ app.all('/ping', function(req, res){
 	os : os.platform()
     };
 
+    curr_ping += 1;
     exec(cmd, function(err, stdout, stderr) {
+	curr_ping -= 1;
 	if (err || !stdout || stdout.length < 1) {
 	    result.error = { 
 		type : 'execerror',

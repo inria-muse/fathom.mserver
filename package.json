@@ -15,6 +15,7 @@
     "redis": "*",
     "minimist": "latest",
     "underscore": "latest",
-    "node-whois" : "latest"
+    "node-whois" : "latest",
+    "ws" : "latest"
   }
 }

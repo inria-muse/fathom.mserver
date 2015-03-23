@@ -16,7 +16,7 @@
     "name"         : "fathomapi",
     "script"       : "server.js",
     "args"         : "['-p', '3004']",
-    "instances"    : "2",
+    "instances"    : "10",
     "exec_mode"    : "cluster_mode",
     "error_file"   : "/home/nodeapp/logs/fathomapi-error.log",
     "out_file"     : "/home/nodeapp/logs/fathomapi.log",
@@ -26,7 +26,7 @@
     "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
-	"DEBUG"    : "server"
+	"DEBUG"    : "mserver"
     }
   }]
 }
