@@ -1,31 +1,56 @@
+/*
+   Fathom API server
+
+   Copyright (C) 2015 Inria Paris-Roquencourt 
+
+   The MIT License (MIT)
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software and associated documentation files (the "Software"), to deal
+   in the Software without restriction, including without limitation the rights
+   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+   
+   The above copyright notice and this permission notice shall be included in 
+   all copies or substantial portions of the Software.
+   
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+*/
+
+/**
+ * @fileoverfiew REST API using express. Provides MAC and IP lookups and
+ * reverse pings and traceroutes.
+ *
+ * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
+ */
+
 var os = require('os');
 var exec = require('child_process').exec;
 
 // external dependencies
 var debug = require('debug')('mserver')
 var _ = require('underscore');
-var argv = require('minimist')(process.argv.slice(2));
 var redis = require('redis');
 var express = require('express');
 var bodyParser = require('body-parser');
 var ipaddr = require('ipaddr.js');
 var whois = require('node-whois');
+var moment = require("moment");
 
 // helpers
 var utils = require('./utils');
 
-// args
-if (argv.h) {
-    console.log("Usage: " + process.argv[0] + 
-		" " + process.argv[1] + 
-		" [-p <port>]");
-    process.exit(0);
-}
-var port = argv.p || 3000;
-
-// resource limits (per instance -- check processes.json for max instance)
-var MAX_MTR = process.env['MAX_MTR'] || 10;
-var MAX_PING = process.env['MAX_PING'] || 10;
+// configs
+var port = parseInt(process.env.PORT) || 3000;
+var MAX_MTR = parseInt(process.env['MAX_MTR']) || 10;
+var MAX_PING = parseInt(process.env['MAX_PING']) || 10;
 
 // mtr processes
 var curr_mtr = 0;
@@ -38,8 +63,51 @@ db.on("error", function (err) {
     debug("redis error: " + err);
 });
 
+// runtime stats
+var rstats = 'fathom_mserver';
+db.hmset(rstats, {
+    start : new Date(),
+    geolookup : 0,
+    maclookup : 0,
+    revping : 0,
+    revmtr : 0,
+    error : 0, 
+    limerror : 0,
+    wsping : 0,
+    last_geolookup : null,
+    last_maclookup : null,
+    last_revping : null,
+    last_revmtr : null,
+    last_error : null,
+    last_limerror : null,
+    last_wsping : null,
+    last_geolookup_ip : null,
+    last_maclookup_ip : null,
+    last_revping_ip : null,
+    last_revmtr_ip : null,
+    last_error_ip : null,
+    last_limerror_ip : null,
+    last_wsping_ip : null
+});
+
+var incstat = function(what, ip) {
+    try {
+        if (db) {
+	    var obj = {};
+	    obj["last_"+what] = new Date();
+	    obj["last_"+what+"_ip"] = ip;
+            db.hmset(rstats, obj);
+            db.hincrby(rstats, what, 1);
+        }
+    } catch(e) {
+    }
+}
+
 // main app
 var app = express();
+
+// websocket end-point
+var expressWs = require('express-ws')(app); 
 
 // we'll be behind a proxy
 app.enable('trust proxy');
@@ -54,10 +122,25 @@ app.use(function(err, req, res, next) {
     res.type('application/json');
     res.status(500).send({ error: "internal server error",
 			   details: err});
+    incstat('error', utils.getip(req));
 });
 
-// routes
-app.all('/mac/:mac', function(req, res){
+//----  routes  -----
+
+// GET returns some basic stats about the server
+app.all('/', function(req, res) {
+    if (db)
+	db.hgetall(rstats, function(err, obj) {
+            res.type('text/plain');
+            obj.uptime = "Started " + moment(new Date(obj.start).getTime()).fromNow();
+            res.status(200).send(JSON.stringify(obj,null,4));
+	});
+    else
+	res.status(500).send({error : "no redis connection"});
+});
+
+// mac address lookup
+app.all('/mac/:mac', function(req, res) {
     // trim the req
     var mac = req.params.mac;
     mac = mac.replace(/-/g,'');
@@ -76,6 +159,7 @@ app.all('/mac/:mac', function(req, res){
 	obj['mac'] = mac;
 	res.type('application/json');
 	res.status(200).send(obj);
+	incstat('maclookup', utils.getip(req));
     });
 });
 
@@ -86,7 +170,8 @@ var handlegeo = function(req, res, ip) {
 	if (error !== null) {
 	    debug('exec error: ' + error);
 	    debug('stderr: ' + stderr);
-	    res.send(500, { error : 'lookup failed: ' + error});
+	    res.status(500).send({ error : 'lookup failed: ' + error});
+	    incstat('error', ip);
 	    return;
 	}
 
@@ -128,25 +213,30 @@ var handlegeo = function(req, res, ip) {
 				   undefined);
 		}
 		res.status(200).send(obj);
+		incstat('geolookup', ip);
 	    });
 	});
     }
     
     if (!ip || ip.length<=0 || ip === "127.0.0.1") {
 	res.status(500).send({ error : 'invalid ip: ' + ip});
+	incstat('error', ip);
+
     } else if (ipaddr.IPv4.isValid(ip)) {
 	exec('geoiplookup ' + ip, handler);  
+
     } else if (ipaddr.IPv6.isValid(ip)) {
 	exec('geoiplookup6 ' + ip, handler);
+
     } else {
 	res.status(500).send({ error : 'invalid ip: ' + ip });
-	return;
+	incstat('error', ip);
     }
 };
 
 // resolve client's public IP (req.ip)
 app.all('/geo', function(req, res){
-    return handlegeo(req, res, req.ip);
+    return handlegeo(req, res, utils.getip(req));
 });
 
 // resolve any requested IP
@@ -157,7 +247,7 @@ app.all('/geo', function(req, res){
 // build sanitized sys exec command string
 var buildcmd = function(cmd, args, tail) {
     cmd += ' ';
-    cmd += _.map(req.query, function(v,k) {
+    cmd += _.map(args, function(v,k) {
 	var tmp = '-'+k+' '+v;
 	return "'" + tmp.replace(/'/g,"\'") + "'";
     }).join(' ');
@@ -169,13 +259,15 @@ var buildcmd = function(cmd, args, tail) {
 }
 
 // run reverse traceroute (to req.ip)
-app.all('/mtr', function(req, res){
-    var cmd = buildcmd('mtr',req.query,'--raw '+req.ip); 
+app.all('/mtr', function(req, res) {
+    var ip = utils.getip(req);
+    var cmd = buildcmd('mtr',req.query,'--raw '+ip); 
     debug(cmd);
 
     if (curr_mtr >= MAX_MTR) {
-	debug('rejecting mtr request from ' + req.ip);
-	res.status(503); // unavailable
+	debug('rejecting mtr request from ' + ip);
+	res.status(503).send({error : "too many concurrent requests"});
+	incstat('limerror', ip);
 	return;
     }
 
@@ -197,7 +289,7 @@ app.all('/mtr', function(req, res){
 	    };
 	} else {
 	    var r = {
-		dst: req.ip,
+		dst: ip,
 		nqueries : (req.query.c ? parseInt(req.query.c) : 10),
 		hops: []
 	    };
@@ -243,21 +335,24 @@ app.all('/mtr', function(req, res){
 	    result.result = r;
 	}
 	res.status(200).send(result);
+	incstat('revmtr', ip);
     }); // exec
 });
 
 // run reverse ping (to req.ip)
-app.all('/ping', function(req, res){
+app.all('/ping', function(req, res) {
     // default param for number of pings
     if (!req.query.c)
 	req.query.c = 5;
 
-    var cmd = buildcmd('ping',req.query,req.ip); 
+    var ip = utils.getip(req);
+    var cmd = buildcmd('ping',req.query,ip); 
     debug(cmd);
 
     if (curr_mtr >= MAX_PING) {
-	debug('rejecting ping request from ' + req.ip);
-	res.status(503); // unavailable
+	debug('rejecting ping request from ' + ip);
+	res.status(503).send({error : "too many concurrent requests"});
+	incstat('limerror', ip);
 	return;
     }
 
@@ -280,8 +375,8 @@ app.all('/ping', function(req, res){
 	} else {
 	    var lines = (stdout ? stdout.trim() : "").split("\n");
 	    var r = {
-		dst: req.ip,
-		dst_ip : req.ip,
+		dst: ip,
+		dst_ip : ip,
 		count : req.query['c'],        // -c
 		bytes : req.query['b'] || 56,  // -b or default
 		ttl : req.query['t'], 
@@ -316,7 +411,26 @@ app.all('/ping', function(req, res){
 	    result.result = r;
 	}
 	res.status(200).send(result);
+	incstat('revping', ip);
     }); // exec
+});
+
+// websocket ping
+app.ws('/wsping', function(ws, req) {
+    var ip = utils.getip(req);
+    var tr = new utils.TS();
+    incstat('wsping', ip);
+    debug("wsping req from " + ip);
+
+    ws.on('message', function(msg) {
+	msg = JSON.parse(msg);
+	msg.r = tr.getts();
+	msg.ra = ip;
+	ws.send(JSON.stringify(msg), function(err) {
+	    if (err)
+		debug('wsping send failed: ' + err);
+	});
+    });
 });
 
 // startup

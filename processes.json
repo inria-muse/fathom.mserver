@@ -2,7 +2,7 @@
   "apps" : [{
     "name"         : "fathomapi-cache",
     "script"       : "cachemgr.js",
-    "error_file"   : "/home/nodeapp/logs/fathomapi-cache-error.log",
+    "error_file"   : "/home/nodeapp/logs/fathomapi-cache.log",
     "out_file"     : "/home/nodeapp/logs/fathomapi-cache.log",
     "pid_file"     : "/home/nodeapp/pids/fathomapi-cache",
     "run_as_user"  : "nodeapp",	
@@ -15,10 +15,9 @@
   },{
     "name"         : "fathomapi",
     "script"       : "server.js",
-    "args"         : "['-p', '3004']",
     "instances"    : "10",
     "exec_mode"    : "cluster_mode",
-    "error_file"   : "/home/nodeapp/logs/fathomapi-error.log",
+    "error_file"   : "/home/nodeapp/logs/fathomapi.log",
     "out_file"     : "/home/nodeapp/logs/fathomapi.log",
     "pid_file"     : "/home/nodeapp/pids/fathomapi",
     "run_as_user"  : "nodeapp",	
@@ -26,7 +25,26 @@
     "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
+	"PORT"     : "3004",
+	"MAX_PING" : "10",
+	"MAX_MTR"  : "10",
 	"DEBUG"    : "mserver"
+    }
+  },{
+    "name"         : "pingserver",
+    "script"       : "pingserver.js",
+    "instances"    : "10",
+    "exec_mode"    : "cluster_mode",
+    "error_file"   : "/home/nodeapp/logs/pingserver.log",
+    "out_file"     : "/home/nodeapp/logs/pingserver.log",
+    "pid_file"     : "/home/nodeapp/pids/pingserver",
+    "run_as_user"  : "nodeapp",	
+    "run_as_group" : "nodeapp",
+    "cwd"          : "/home/nodeapp/apps/fathomapi",
+    "env": {
+        "NODE_ENV" : "production",
+	"PORT"     : "5790",
+	"DEBUG"    : "pingserver"
     }
   }]
 }

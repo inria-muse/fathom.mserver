@@ -1,7 +1,7 @@
 {
   "name": "fathomapi",
   "description": "Fathom REST API.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "start": "pm2 start processes.json",
@@ -13,9 +13,10 @@
     "express": "4.x",
     "body-parser" : "latest",
     "redis": "*",
-    "minimist": "latest",
     "underscore": "latest",
     "node-whois" : "latest",
-    "ws" : "latest"
+    "ws" : "latest",
+    "express-ws": "latest",
+    "moment" : "latest"
   }
 }
