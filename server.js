@@ -181,17 +181,26 @@ var handlegeo = function(req, res, ip) {
 
 	_.each(stdout.split('\n'), function(l) {
 	    var tmp = l.split(':');
-	    if (tmp[0].indexOf('Country Edition')>=0) {
-		if (tmp[1] && tmp[1].indexOf('IP Address not found') < 0) {
-		    tmp = tmp[1].trim().split(',')
-		    obj.cc = tmp[0].trim();
-		    obj.country = tmp[1].trim();
-		} // else not found
-	    } else if (tmp[0].indexOf('ISP Edition')>=0) {
+	    if (tmp.length < 2)
+		return;
+
+	    if (tmp[0].indexOf('Country Edition')>=0 && 
+		tmp[1].indexOf('IP Address not found') < 0) 
+	    {
+		tmp = tmp[1].trim().split(',')
+		obj.cc = tmp[0].trim();
+		obj.country = tmp[1].trim();
+	    } else if (tmp[0].indexOf('ISP Edition')>=0 && 
+		       tmp[1].indexOf('IP Address not found') < 0) 
+	    {
 		obj.isp = tmp[1].trim();
-	    } else if (tmp[0].indexOf('Organization Edition')>=0) {
+	    } else if (tmp[0].indexOf('Organization Edition')>=0 && 
+		tmp[1].indexOf('IP Address not found') < 0) 
+	    {
 		obj.org = tmp[1].trim();
-	    } else if (tmp[0].indexOf('City Edition, Rev 1')>=0) {
+	    } else if (tmp[0].indexOf('City Edition, Rev 1')>=0 && 
+		tmp[1].indexOf('IP Address not found') < 0) 
+	    {
 		tmp = tmp[1].trim().split(',')
 		obj.city = tmp[2].trim();
 		obj.lat = parseFloat(tmp[4].trim());
