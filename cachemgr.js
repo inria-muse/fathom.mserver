@@ -38,8 +38,6 @@ var redis = require('redis');
 
 // some configs
 const OUIDB = "http://standards.ieee.org/develop/regauth/oui/oui.txt";
-const UPDATEIV = 24*3600*1000;
-const ERRUPDATEIV = 2*3600*1000;
 
 // redis client
 var db = redis.createClient();
@@ -100,21 +98,20 @@ var update_cache = function() {
     };
 
     http.get(OUIDB, function(res) {
-	debug("update_cache got data: " + res.statusCode);
-	res.setEncoding('utf8');
-	res.on('data', handlechunk);
-	res.on('end', function(chunk) {
-	    handlechunk(chunk);
-	    write();
-
-	    debug("update_cache done!");
-	    db.set('mac:lastwritesucc',true);
-	    setInterval(update_cache, UPDATEIV); // next update in 24h
-	});
+	debug("update_cache HTTP GET resp: " + res.statusCode);
+	if (res.statusCode === 200) {
+	    res.setEncoding('utf8');
+	    res.on('data', handlechunk);
+	    res.on('end', function(chunk) {
+		handlechunk(chunk);
+		write();
+		debug("update_cache done!");
+		db.set('mac:lastwritesucc',true);
+	    });
+	}
     }).on('error', function(e) {
 	debug("update_cache error: " + e.message);
 	db.set('mac:lastwritesucc',false);
-	setInterval(update_cache, ERRUPDATEIV); // try again in couple of hours
     });
 };
 
