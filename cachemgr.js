@@ -25,13 +25,13 @@
 */
 
 /**
- * @fileoverfiew Fetches and parses the IEEE OUI database once a day and 
- *               keeps a copy in a local Redis store for the API cluster.
+ * @fileoverfiew Fetches and parses the IEEE OUI database. Stored in a Redis cache.
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
 
-var debug = require('debug')('cachemgr')
+var debug = require('debug')('fathom.mserver.cache')
+
 var _ = require('underscore');
 var http = require('http');
 var redis = require('redis');
@@ -39,81 +39,103 @@ var redis = require('redis');
 // some configs
 const OUIDB = "http://standards.ieee.org/develop/regauth/oui/oui.txt";
 
-// redis client
-var db = redis.createClient();
-db.on("error", function (err) {
-    debug("redis error: " + err);
-});
+var UPDATE_FREQ = parseInt(process.env['OUICACHE']) || -1; // only do once
 
-/**
- * Update the manufacturer information from the IEEE site.
- */
-var update_cache = function() {
-    debug("update_cache");
+/** Update the manufacturer information from the IEEE. */
+var updateOUIcache = function() {
+    debug("updateCache");    
+
+	// redis client
+	var db = redis.createClient();
+	if (!db) {
+		debug("redis create failed");
+	}
+
+	db.on("error", function (err) {
+		debug("redis connect or fatal error: " + err);
+	});
+
+	db.set('mac:lastwritets', Date.now());
+
     var buf = "";
-
     var v = {};
     var k = undefined;
     var addr = [];
 
     var write = function() {
-	if (k === undefined) return;
-	v['ts'] = Date.now();
-	v['country'] = addr[addr.length-1];
-	_.each(addr.splice(0,(addr.length-1)), function(elem, idx) {
-	    v['address'+(idx+1)] = elem;
-	});
+		if (k === undefined) return;
+		v['ts'] = Date.now();
+		v['country'] = addr[addr.length-1];
+		_.each(addr.splice(0,(addr.length-1)), function(elem, idx) {
+		    v['address'+(idx+1)] = elem;
+		});
 
-	db.hmset('mac:'+k, v, function(err, results) {
-	    if (err) debug('redis hmset error: ' + err);
-	});
+		db.hmset('mac:'+k, v, function(err, results) {
+		    if (err) debug('redis hmset error: ' + err);
+		});
     };
 
     var handleline = function(l) {
-	if (l.indexOf('(hex') >= 0) {
-	    write();
+		if (l.indexOf('(hex') >= 0) {
+		    write();
 
-	    // new element
-	    k = l.split(' ')[0].trim().replace(/\-/g,'').toLowerCase();
-	    v = {
-		company : l.split('\t\t')[1],
-	    }
-	    addr = [];
+		    // new element
+		    k = l.split(' ')[0].trim().replace(/\-/g,'').toLowerCase();
+		    v = {
+			company : l.split('\t\t')[1],
+		    }
+		    addr = [];
 
-	} else if (l.indexOf('(base') < 0 && l.indexOf('Generated:') < 0) {
-	    addr.push(l.trim());
-	}
+		} else if (l.indexOf('(base') < 0 && l.indexOf('Generated:') < 0) {
+		    addr.push(l.trim());
+		}
     };
 
     var handlechunk = function(chunk) {
-	buf += chunk;
-	var idx = buf.indexOf('\n');
-	while (idx>=0) {
-	    var l = buf.slice(0,idx).trim();
-	    if (l.length>0)
-		handleline(l);
-	    buf = buf.slice((idx+1));
-	    idx = buf.indexOf('\n');
-	}
+		buf += chunk;
+		var idx = buf.indexOf('\n');
+		while (idx>=0) {
+		    var l = buf.slice(0,idx).trim();
+		    if (l.length>0)
+			handleline(l);
+		    buf = buf.slice((idx+1));
+		    idx = buf.indexOf('\n');
+		}
     };
 
+    var done = function(succ) {
+		debug("updateCache done!");
+		db.set('mac:lastwritesucc',succ);
+		db.quit();
+
+	    // schedule next update ?
+	    if (UPDATE_FREQ > 0) {
+	    	setTimeout(updateOUIcache, UPDATE_FREQ*1000);
+	    } else {
+	    	process.exit(0);
+	    }
+    }
+
     http.get(OUIDB, function(res) {
-	debug("update_cache HTTP GET resp: " + res.statusCode);
-	if (res.statusCode === 200) {
-	    res.setEncoding('utf8');
-	    res.on('data', handlechunk);
-	    res.on('end', function(chunk) {
-		handlechunk(chunk);
-		write();
-		debug("update_cache done!");
-		db.set('mac:lastwritesucc',true);
-	    });
-	}
+		debug("updateCache HTTP GET resp: " + res.statusCode);
+		if (res.statusCode === 200) {
+		    res.setEncoding('utf8');
+		    res.on('data', handlechunk);
+		    res.on('end', function(chunk) {
+				handlechunk(chunk);
+				write();
+				done(true);
+		    });
+		} else if (res.statusCode === 302) {
+			done(true); // no changes
+		} else {
+			done(false);
+		}
     }).on('error', function(e) {
-	debug("update_cache error: " + e.message);
-	db.set('mac:lastwritesucc',false);
+		debug("updateCache error: " + e.message);
+		done(false);
     });
 };
 
-// start the first update
-update_cache();
+// first run
+updateOUIcache();

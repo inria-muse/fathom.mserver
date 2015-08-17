@@ -25,83 +25,154 @@
 */
 
 /**
- * @fileoverfiew REST API using express. Provides MAC and IP lookups and
- * reverse pings and traceroutes.
+ * @fileoverfiew REST API for various measurement tools and lookups.
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
 
-var os = require('os');
-var exec = require('child_process').exec;
-
 // external dependencies
-var debug = require('debug')('mserver')
+var debug = require('debug')('fathom.mserver')
 var _ = require('underscore');
 var redis = require('redis');
 var express = require('express');
 var bodyParser = require('body-parser');
-var ipaddr = require('ipaddr.js');
-var whois = require('node-whois');
 var moment = require("moment");
 
-// helpers
+var tools = require('./tools');
 var utils = require('./utils');
 
-// configs
-var port = parseInt(process.env.PORT) || 3000;
-var MAX_MTR = parseInt(process.env['MAX_MTR']) || 10;
-var MAX_PING = parseInt(process.env['MAX_PING']) || 10;
+// server listening port
+const PORT = parseInt(process.env.PORT) || 3000;
 
-// mtr processes
-var curr_mtr = 0;
-// ping processes
-var curr_ping = 0;
+const MAX_WORKER_PROCS = parseInt(process.env['MAX_WORKER_PROCS']) || 500;
+var curr_procs = 0; // watching per worker
+
+// max simultaneous reqs per IP (across cluster)
+const MAX_PER_IP = parseInt(process.env['MAX_PER_IP']) || 10;
+
+// requests per hour per IP (across cluster)
+const REQS_PER_IP = parseInt(process.env['REQS_PER_IP']) || 30;
+
+const REQS_PER_IP_IV = 3600; // 1h in seconds
+
 
 // redis client
 var db = redis.createClient();
+if (!db) {
+    debug("redis create failed");
+    process.exit(1);
+}
 db.on("error", function (err) {
-    debug("redis error: " + err);
+    debug("redis connect or fatal error: " + err);
+    process.exit(1);
 });
 
 // runtime stats
-var rstats = 'fathom_mserver';
-db.hmset(rstats, {
-    start : new Date(),
-    geolookup : 0,
-    maclookup : 0,
-    revping : 0,
-    revmtr : 0,
-    error : 0, 
-    limerror : 0,
-    wsping : 0,
+var REDISOBJ = 'fathom_mserver';
+db.hmset(REDISOBJ, {
+    start : new Date(), // server starttime
+
+    fulllookup : 0, // my ip lookups
+    last_fulllookup : null,
+    last_fulllookup_ip : null,
+
+    iplookup : 0, // my ip lookups
+    last_iplookup : null,
+    last_iplookup_ip : null,
+
+    geolookup : 0, // ip geolookups
     last_geolookup : null,
-    last_maclookup : null,
-    last_revping : null,
-    last_revmtr : null,
-    last_error : null,
-    last_limerror : null,
-    last_wsping : null,
     last_geolookup_ip : null,
+
+    whoislookup : 0, // my ip lookups
+    last_whoislookup : null,
+    last_whoislookup_ip : null,
+
+    maclookup : 0, // mac address lookups
+    last_maclookup : null,
     last_maclookup_ip : null,
+
+    revping : 0, // reverse pings
+    last_revping : null,
     last_revping_ip : null,
+
+    revmtr : 0, // reverse traceroutes
+    last_revmtr : null,
     last_revmtr_ip : null,
+
+    error : 0, // total errors
+    last_error : null,
     last_error_ip : null,
-    last_limerror_ip : null,
-    last_wsping_ip : null
+
+    limerror : 0, // hit max MTR/PING procs
+    last_limerror : null,
+    last_limerror_ip : null
 });
 
-var incstat = function(what, ip) {
-    try {
-        if (db) {
-	    var obj = {};
-	    obj["last_"+what] = new Date();
-	    obj["last_"+what+"_ip"] = ip;
-            db.hmset(rstats, obj);
-            db.hincrby(rstats, what, 1);
-        }
-    } catch(e) {
-    }
-}
+var rediserr = function(err, res) {
+	if (err) debug("redis error: " + err);
+};
+
+var checkiprates = function(cb, ip) {
+	db.hgetall("ratelim:"+ip, function(err, obj) {
+		var ts = Date.now();
+		if (!obj)
+			obj = {
+				running : 0,
+				hourstart : ts,
+				hourruns : 0
+			}
+		else
+			_.each(obj, function(v,k) { obj[k] = parseInt(v); } );
+
+		if ((ts - obj['hourstart']) > REQS_PER_IP_IV*1000) {
+			// next hour - reset rate lim
+			obj['hourstart'] = ts;
+			obj['hourruns'] = 0;
+		}
+
+		if (ip != '127.0.0.1' && obj['running'] > MAX_PER_IP) {
+			cb(false); // too many concurrent requests from this IP
+		} else if (ip != '127.0.0.1' && obj['hourruns'] > REQS_PER_IP) {
+			cb(false); // too many reqs this hour
+		} else {
+			obj['running'] += 1;
+			obj['hourruns'] += 1;
+		    db.hmset("ratelim:"+ip, obj);
+			cb(true);
+		}
+	});
+};
+
+var senderror = function(req, res, err) {
+	err = err || { error : "internal server error" };
+	err['ts'] = Date.now();
+	err['ip'] = req.clientip;	
+
+	var tmpobj = {};
+    tmpobj["last_error"] = err['ts'];
+    tmpobj["last_error_ip"] = err['ip'];
+    db.hmset(REDISOBJ, tmpobj, rediserr);
+    db.hincrby(REDISOBJ, 'error', 1, rediserr);
+	db.hincrby("ratelim:"+req.clientip, 'running', -1, rediserr);
+
+    res.type('application/json');
+    res.status(200).send(JSON.stringify(err,null,4));
+};
+
+var sendresp = function(req, res, obj, what) {
+    var tmpobj = {};
+    tmpobj["last_"+what] = new Date();
+    tmpobj["last_"+what+"_ip"] = req.clientip;
+    db.hmset(REDISOBJ, tmpobj, rediserr);
+    db.hincrby(REDISOBJ, what, 1, rediserr);
+	db.hincrby("ratelim:"+req.clientip, 'running', -1, rediserr);
+
+    res.type('application/json');
+    res.status(200).send(obj);
+};
+
+//---- APP -----
 
 // main app
 var app = express();
@@ -115,335 +186,306 @@ app.enable('trust proxy');
 // middleware
 app.use(bodyParser.json());
 
-// err handler
+// generic err handler
 app.use(function(err, req, res, next) {
     debug(err);
     debug(err.stack);
-    res.type('application/json');
-    res.status(500).send({ error: "internal server error",
-			   details: err});
-    incstat('error', utils.getip(req));
+    senderror(req,res);
 });
 
-//----  routes  -----
+// rate-limit heavier requests per worker
+app.use(/\/ping|\/mtr/, function(req, res, next) {
+    if (curr_procs >= MAX_WORKER_PROCS) {
+    	debug("PANIC - too many jobs [" + curr_procs + "]");
+		return res.status(503).send();
+    } else {
+    	next();
+    }
+});
 
-// GET returns some basic stats about the server
-app.all('/', function(req, res) {
-    if (db)
-	db.hgetall(rstats, function(err, obj) {
-            res.type('text/plain');
-            obj.uptime = "Started " + moment(new Date(obj.start).getTime()).fromNow();
-            res.status(200).send(JSON.stringify(obj,null,4));
+// ip checking and rate limits per IP for all requests (except wsping)
+app.use(function(req, res, next) {    
+	var ip = (req.headers['x-forwarded-for'] || 
+	  		  req.connection.remoteAddress || 
+	          req.socket.remoteAddress ||
+	          req.connection.socket.remoteAddress ||
+	          req.ip);
+	ip = ip.replace('::ffff:','').trim();
+	req.clientip = ip
+	debug("connection from " + ip);
+
+	if (req.path === '/wsping' || req.path === '/') {
+		next();
+	} else {
+		checkiprates(function(ok) {
+			debug("allowed? " + ok);
+			if (ok) {
+				next(); // pass control to the next handler 
+			} else {
+			    res.type('application/json');
+			    res.status(200).send(JSON.stringify({ error : 'rate limited -- try again later' },null,4));			
+			}
+		}, ip);
+	}
+});
+
+// returns some basic stats about the server
+app.get('/', function(req, res) {
+	db.hgetall(REDISOBJ, function(err, obj) {
+        res.type('text/plain');
+        obj.uptime = "Started " + moment(new Date(obj.start).getTime()).fromNow();
+        res.status(200).send(JSON.stringify(obj,null,4));
 	});
-    else
-	res.status(500).send({error : "no redis connection"});
+});
+
+// return all possible info about the client based on IP
+app.all('/fulllookup/', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : {}
+	};
+
+	tools.reverseDns(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		    return;
+		}
+		obj.result['reversedns'] = result;
+
+		tools.geo(function(err, result) {
+			if (err) {
+			    senderror(req, res, err);
+			    return;
+			}
+			obj.result['geo'] = result;
+
+			tools.whois(function(err, result) {
+				if (err) {
+				    senderror(req, res, err);
+				    return;
+				}
+				obj.result['whois'] = result;
+
+				sendresp(req, res, obj, 'fulllookup');
+
+			}, obj['ip']);					
+		}, obj['ip']);			
+	}, obj['ip']);
+});
+
+// basic ip lookup
+app.all('/ip/', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+
+	tools.reverseDns(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'iplookup');
+		}
+	}, obj['ip']);
 });
 
 // mac address lookup
 app.all('/mac/:mac', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+
     // trim the req
-    var mac = req.params.mac;
+    var mac = req.params.mac.trim();
     mac = mac.replace(/-/g,'');
     mac = mac.replace(/:/g,'');
     if (mac.length>6) {
-	mac = mac.substr(0,6)
+		mac = mac.substr(0,6)
     }
 
-    db.hgetall("mac:"+mac, function(err, obj) {
-	if (err) 
-	    obj = {error : err};
-	else if (!obj)
-	    obj = {error : "not found"};
-
-	obj['ts'] = Date.now();
-	obj['mac'] = mac;
-	res.type('application/json');
-	res.status(200).send(obj);
-	incstat('maclookup', utils.getip(req));
+    db.hgetall("mac:"+mac, function(err, result) {
+		if (err) {
+		    senderror(req, res, {error : err});
+		} else if (!result) {
+		    senderror(req, res, {error : mac + ' not found'});
+		} else {
+			obj['result'] = result;
+			sendresp(req, res, obj, 'maclookup');
+		}
     });
 });
 
-var handlegeo = function(req, res, ip) {
-    debug("geolookup for " + ip);
- 
-    var handler = function(error, stdout, stderr) {
-	if (error !== null) {
-	    debug('exec error: ' + error);
-	    debug('stderr: ' + stderr);
-	    res.status(500).send({ error : 'lookup failed: ' + error});
-	    incstat('error', ip);
-	    return;
-	}
+// resolve client's geolocation (req.ip)
+app.all('/geo', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
 
-	var obj = {};
-	obj['ts'] = Date.now();
-	obj['ip'] = ip;
-
-	_.each(stdout.split('\n'), function(l) {
-	    var tmp = l.split(':');
-	    if (tmp.length < 2)
-		return;
-
-	    if (tmp[0].indexOf('Country Edition')>=0 && 
-		tmp[1].indexOf('IP Address not found') < 0) 
-	    {
-		tmp = tmp[1].trim().split(',')
-		obj.cc = tmp[0].trim();
-		obj.country = tmp[1].trim();
-	    } else if (tmp[0].indexOf('ISP Edition')>=0 && 
-		       tmp[1].indexOf('IP Address not found') < 0) 
-	    {
-		obj.isp = tmp[1].trim();
-	    } else if (tmp[0].indexOf('Organization Edition')>=0 && 
-		tmp[1].indexOf('IP Address not found') < 0) 
-	    {
-		obj.org = tmp[1].trim();
-	    } else if (tmp[0].indexOf('City Edition, Rev 1')>=0 && 
-		tmp[1].indexOf('IP Address not found') < 0) 
-	    {
-		tmp = tmp[1].trim().split(',')
-		obj.city = tmp[2].trim();
-		obj.lat = parseFloat(tmp[4].trim());
-		obj.lon = parseFloat(tmp[5].trim());
-	    }
-	});
-
-	// get whois data
-	whois.lookup(ip, function(err, data) {
-	    if (!err && data)
-		obj.whois = utils.parsewhois(data);
-
-	    // reverse dnsname for the IP
-	    exec('host ' + ip, function(error, stdout, stderr) {
-		if (!error && stdout && stdout.indexOf('not found')<0) {
-		    var tokens = stdout.trim().split(' ');
-		    obj.dnsname = (tokens.lenght > 1 ? 
-				   tokens[tokens.length-1] : 
-				   undefined);
+	tools.geo(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'geolookup');
 		}
-		res.status(200).send(obj);
-		incstat('geolookup', ip);
-	    });
-	});
-    }
-    
-    if (!ip || ip.length<=0 || ip === "127.0.0.1") {
-	res.status(500).send({ error : 'invalid ip: ' + ip});
-	incstat('error', ip);
-
-    } else if (ipaddr.IPv4.isValid(ip)) {
-	exec('geoiplookup ' + ip, handler);  
-
-    } else if (ipaddr.IPv6.isValid(ip)) {
-	exec('geoiplookup6 ' + ip, handler);
-
-    } else {
-	res.status(500).send({ error : 'invalid ip: ' + ip });
-	incstat('error', ip);
-    }
-};
-
-// resolve client's public IP (req.ip)
-app.all('/geo', function(req, res){
-    return handlegeo(req, res, utils.getip(req));
+	}, obj['ip']);
 });
 
-// resolve any requested IP
-//app.all('/geo/:ip', function(req, res){
-//    return handlegeo(req, res, req.params.ip);
-//});
+// resolve any requested IP geolocation (req.params.ip)
+app.all('/geo/:ip', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+	tools.geo(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'geolookup');
+		}
+	}, req.params.ip);
+});
 
-// build sanitized sys exec command string
-var buildcmd = function(cmd, args, tail) {
-    cmd += ' ';
-    cmd += _.map(args, function(v,k) {
-	var tmp = '-'+k+' '+v;
-	return "'" + tmp.replace(/'/g,"\'") + "'";
-    }).join(' ');
+// whois client's public IP (req.ip)
+app.all('/whois', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+	tools.whois(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'whois');
+		}
+	}, obj['ip']);
+});
 
-    if (tail)
-	cmd += ' ' + tail;
-
-    return cmd.replace(/\s+/g, ' ');
-}
+// whois requested IP (req.params.ip)
+app.all('/whois/:ip', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+	tools.whois(function(err, result) {
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'whois');
+		}
+	}, req.params.ip);
+});
 
 // run reverse traceroute (to req.ip)
-app.all('/mtr', function(req, res) {
-    var ip = utils.getip(req);
-    var cmd = buildcmd('mtr',req.query,'--raw '+ip); 
-    debug(cmd);
+app.all('/mtr/', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
 
-    if (curr_mtr >= MAX_MTR) {
-	debug('rejecting mtr request from ' + ip);
-	res.status(503).send({error : "too many concurrent requests"});
-	incstat('limerror', ip);
-	return;
-    }
-
-    var result = {
-	ts : Date.now(),
-	cmd : 'mtr',
-	cmdline : cmd,
-	os : os.platform()
-    };
-
-    curr_mtr += 1;
-    exec(cmd, function(err, stdout, stderr) {
-	curr_mtr -= 1;
-	if (err || !stdout || stdout.length < 1) {
-	    result.error = { 
-		type : 'execerror',
-		message : stderr || stdout,
-		code : err
-	    };
-	} else {
-	    var r = {
-		dst: ip,
-		nqueries : (req.query.c ? parseInt(req.query.c) : 10),
-		hops: []
-	    };
-
-	    var lines = (stdout ? stdout.trim() : "").split("\n");
-	    for (var i = 0; i < lines.length; i++) {
-		var tmp = lines[i].trim().split(' ');
-		var hopid = parseInt(tmp[1]);
-		switch (tmp[0]) {
-		case 'h':
-		    r.hops[hopid] = { 
-			address : tmp[2],
-			hostname : undefined, 
-			missed : r.nqueries, 
-			rtt : [] 
-		    };
-		    break;
-
-		case 'p':
-		    var hop = r.hops[hopid];
-		    hop.missed -= 1;
-		    hop.rtt.push(parseInt(tmp[2])/1000.0);
-		    break;
-
-		case 'd':
-		    var hop = r.hops[hopid];
-		    hop.hostname = tmp[2];
-		    break;
+    curr_procs += 1;
+	tools.mtr(function(err, result) {
+		curr_procs -= 1;
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'revmtr');
 		}
-	    }
-	    // did we reach the destination ?
-	    r.succ = (r.hops.length > 0 && 
-		      (r.hops[r.hops.length-1].address === r.dst ||
-		       r.hops[r.hops.length-1].hostname === r.dst));
+	}, obj['ip'], req.query);
+});
 
-	    // trim off the last dupl hop (if succ)
-	    if (r.hops.length > 1 && 
-		(r.hops[r.hops.length-1].address === 
-		 r.hops[r.hops.length-1].address)) 
-	    {
-		r.hops = r.hops.slice(0,r.hops.length-1)
-	    }
-	    result.result = r;
-	}
-	res.status(200).send(result);
-	incstat('revmtr', ip);
-    }); // exec
+// run reverse traceroute (to req.params.ip)
+app.all('/mtr/:ip', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+
+    curr_procs += 1;
+	tools.mtr(function(err, result) {
+		curr_procs -= 1;
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'revmtr');
+		}
+	}, req.params.ip, req.query);
 });
 
 // run reverse ping (to req.ip)
-app.all('/ping', function(req, res) {
-    // default param for number of pings
-    if (!req.query.c)
-	req.query.c = 5;
+app.all('/ping/', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
 
-    var ip = utils.getip(req);
-    var cmd = buildcmd('ping',req.query,ip); 
-    debug(cmd);
-
-    if (curr_mtr >= MAX_PING) {
-	debug('rejecting ping request from ' + ip);
-	res.status(503).send({error : "too many concurrent requests"});
-	incstat('limerror', ip);
-	return;
-    }
-
-    var result = {
-	ts : Date.now(),
-	cmd : 'ping',
-	cmdline : cmd,
-	os : os.platform()
-    };
-
-    curr_ping += 1;
-    exec(cmd, function(err, stdout, stderr) {
-	curr_ping -= 1;
-	if (err || !stdout || stdout.length < 1) {
-	    result.error = { 
-		type : 'execerror',
-		message : stderr || stdout,
-		code : err
-	    };
-	} else {
-	    var lines = (stdout ? stdout.trim() : "").split("\n");
-	    var r = {
-		dst: ip,
-		dst_ip : ip,
-		count : req.query['c'],        // -c
-		bytes : req.query['b'] || 56,  // -b or default
-		ttl : req.query['t'], 
-		lost : 0,                       // lost pkts
-		rtt : [],                       // results
-		stats : undefined,              // rtt stats
-		time_exceeded_from : undefined, // IP of sender
-		alt : []                        // full responses
-	    };
-
-	    var i, line;
-	    for (i = 0; i < lines.length; i++) {	    
-		line = lines[i].trim().replace(/\s+/g, ' ').split(' ');
-
-		if (lines[i].toLowerCase().indexOf('time to live exceeded')>=0) {
-		    r.time_exceeded_from = line[1];
-		    break;
-		    
-		} else if (line[0] === 'PING') {
-		    r.dst_ip = line[2].replace(/\(|\)|:/gi, '');
-		    r.bytes = parseInt((line[3].indexOf('\(') < 0 ? line[3] : line[3].substring(0,line[3].indexOf('\('))));
-
-		} else if (line[1] === 'bytes') {
-		    for (var j = 2; j < line.length; j++) {
-			if (line[j].indexOf('time=') === 0) {
-			    var tmp = line[j].split('=');
-			    r.rtt.push(parseFloat(tmp[1]));
-			}
-		    }
+    curr_procs += 1;
+	tools.ping(function(err, result) {
+		curr_procs -= 1;
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'revping');
 		}
-	    }
-	    result.result = r;
-	}
-	res.status(200).send(result);
-	incstat('revping', ip);
-    }); // exec
+	}, obj['ip'], req.query);
+});
+
+// run reverse ping (to req.ip)
+app.all('/ping/:ip', function(req, res) {
+	var obj = {
+		'ts' : Date.now(),
+		'ip' : req.clientip,
+		'result'  : undefined
+	};
+
+    curr_procs += 1;
+	tools.ping(function(err, result) {
+		curr_procs -= 1;
+		if (err) {
+		    senderror(req, res, err);
+		} else {
+			obj.result = result;
+			sendresp(req, res, obj, 'revping');
+		}
+	}, req.params.ip, req.query);
 });
 
 // websocket ping
 app.ws('/wsping', function(ws, req) {
-    var ip = utils.getip(req);
+    var ip = req.clientip;
     var tr = new utils.TS();
-    incstat('wsping', ip);
-    debug("wsping req from " + ip);
-
     ws.on('message', function(msg) {
-	msg = JSON.parse(msg);
-	msg.r = tr.getts();
-	msg.ra = ip;
-	ws.send(JSON.stringify(msg), function(err) {
-	    if (err)
-		debug('wsping send failed: ' + err);
-	});
+		msg = JSON.parse(msg);
+		msg.r = tr.getts();
+		msg.ra = ip;
+		ws.send(JSON.stringify(msg), function(err) {
+		    if (err)
+				debug('wsping send failed: ' + err);
+		});
     });
 });
 
 // startup
-var server = app.listen(port, function() {
+var server = app.listen(PORT, function() {
     debug("listening on %s:%d",
           server.address().address, server.address().port);
 });
