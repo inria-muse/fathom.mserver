@@ -239,7 +239,7 @@ app.get('/', function(req, res) {
 });
 
 // return all possible info about the client based on IP
-app.all('/fulllookup/', function(req, res) {
+app.all('/fulllookup', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
@@ -251,7 +251,7 @@ app.all('/fulllookup/', function(req, res) {
 		    senderror(req, res, err);
 		    return;
 		}
-		obj.result['reversedns'] = result;
+		obj.result['ip'] = result;
 
 		tools.geo(function(err, result) {
 			if (err) {
@@ -275,7 +275,7 @@ app.all('/fulllookup/', function(req, res) {
 });
 
 // basic ip lookup
-app.all('/ip/', function(req, res) {
+app.all('/ip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
@@ -321,7 +321,7 @@ app.all('/mac/:mac', function(req, res) {
 });
 
 // resolve client's geolocation (req.ip)
-app.all('/geo', function(req, res) {
+app.all('/geoip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
@@ -339,7 +339,7 @@ app.all('/geo', function(req, res) {
 });
 
 // resolve any requested IP geolocation (req.params.ip)
-app.all('/geo/:ip', function(req, res) {
+app.all('/geoip/:ip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
@@ -390,7 +390,7 @@ app.all('/whois/:ip', function(req, res) {
 });
 
 // run reverse traceroute (to req.ip)
-app.all('/mtr/', function(req, res) {
+app.all('/mtr', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
@@ -430,7 +430,7 @@ app.all('/mtr/:ip', function(req, res) {
 });
 
 // run reverse ping (to req.ip)
-app.all('/ping/', function(req, res) {
+app.all('/ping', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
 		'ip' : req.clientip,
