@@ -29,7 +29,7 @@
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
 
-var debug = require('debug')('pingserver');
+var debug = require('debug')('fathom.mserver.ping');
 var dgram = require('dgram');
 var TS = require('./utils').TS;
 

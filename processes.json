@@ -10,12 +10,12 @@
     "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
-	"DEBUG"    : "cachemgr"
+	"DEBUG"    : "fathom.mserver.cache"
     }
   },{
     "name"         : "fathomapi",
     "script"       : "server.js",
-    "instances"    : "10",
+    "instances"    : "5",
     "exec_mode"    : "cluster_mode",
     "error_file"   : "/home/nodeapp/logs/fathomapi.log",
     "out_file"     : "/home/nodeapp/logs/fathomapi.log",
@@ -26,14 +26,12 @@
     "env": {
         "NODE_ENV" : "production",
 	"PORT"     : "3004",
-	"MAX_PING" : "10",
-	"MAX_MTR"  : "10",
-	"DEBUG"    : "mserver"
+	"DEBUG"    : "fathom.mserver"
     }
   },{
-    "name"         : "pingserver",
+    "name"         : "fathomapi-ping",
     "script"       : "pingserver.js",
-    "instances"    : "10",
+    "instances"    : "5",
     "exec_mode"    : "cluster_mode",
     "error_file"   : "/home/nodeapp/logs/pingserver.log",
     "out_file"     : "/home/nodeapp/logs/pingserver.log",
@@ -44,7 +42,7 @@
     "env": {
         "NODE_ENV" : "production",
 	"PORT"     : "5790",
-	"DEBUG"    : "pingserver"
+	"DEBUG"    : "fathom.mserver.ping"
     }
   }]
 }
