@@ -82,13 +82,41 @@ Run traceroute to the requested IP, or if missing, to the client (public) IP.
 
 ### Example Request/Respose
 
-	$ wget -q -O- --method=GET http://localhost:3000/mtr/128.93.165.1 | python -mjson.tool
+	$ wget -q -O- --method=GET http://localhost:3000/mtr/88.173.211.195 | python -mjson.tool
 	{
-		"ts" : 1406894147226,
-		"ip" : "127.0.0.1",
-		"results" : { ... }
-	}
-
+	    "ip": "88.173.211.195",
+	    "result": {
+	        "cmd": "mtr",
+	        "cmdline": "mtr '-c 3' --raw 88.173.211.195",
+	        "dst": "88.173.211.195",
+	        "hops": [
+	            {
+	                "address": "128.93.165.14",
+	                "missed": 0,
+	                "rtt": [
+	                    1.079,
+	                    1.053,
+	                    1.063
+	                ]
+	            },
+	            {
+	                "address": "192.93.1.105",
+	                "hostname": "rocq-renater-gw.inria.fr",
+	                "missed": 0,
+	                "rtt": [
+	                    1.228,
+	                    1.223,
+	                    1.243
+	                ]
+	            },
+	            ...
+	        ],
+	        "nqueries": 3,
+	        "success": true
+	    },
+	    "ts": 1440057255115
+	} 
+           
 ## Ping
 
 Run ping tot he requested IP/host, or if missing, to the client (public) IP.
