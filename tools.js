@@ -183,6 +183,7 @@ var _ping = exports.ping = function(cb, ip, args) {
 
    exec(cmd, function(err, stdout, stderr) {
       if (err || !stdout || stdout.length < 1) {
+         debug('ping failed',err);
          // failed
          result.error = { 
             type : 'execerror',
@@ -236,6 +237,7 @@ var _mtr = exports.mtr = function(cb, ip, args) {
 
    exec(cmd, function(err, stdout, stderr) {
       if (err || !stdout || stdout.length < 1) {
+         debug('mtr failed',err);
          // failed
          result.error = { 
             type : 'execerror',
@@ -284,6 +286,7 @@ var _mtr = exports.mtr = function(cb, ip, args) {
             result.hops[result.hops.length-2].address)) {
          result.hops = result.hops.slice(0,result.hops.length-1);
       }
+      cb(undefined, result);
    }); // exec
 }; //mtr
 
