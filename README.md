@@ -63,14 +63,15 @@ manufacturer information.
 
 	$ wget -q -O- --method=GET http://localhost:3000/mac/406c8f | python -mjson.tool
 	{
-	  'req-ts'   : <request timestamp>,
-	  'db-ts'    : <last database update timestamp>,
-	  'oui'      : "xxxxxx",
-	  'company'  : "Company Inc",
-	  'address1' : "",              # first address line
-	  <...>
-	  'addressX' : "",              # last address line before country
-	  'country'  : "United States"  # last address line
+	    "ip": "127.0.0.1",
+	    "result": {
+	        "address1": "1 Infinite Loop",
+	        "address2": "Cupertino CA 95014",
+	        "company": "Apple",
+	        "country": "UNITED STATES",
+	        "ts": "1410634631825"
+	    },
+	    "ts": 1440055578862
 	}
 
 ## Traceroute
@@ -125,6 +126,8 @@ The geolocation is based on a locally installed MaxMind DB (lite by default
 on linux, on muse we have a purchazed full db from 2011). The DB access is 
 by using the commandline 'geoiplookup[6]' tool. If no IP address is given,
 the service responds with the geolocation of the public IP of the request.
+
+	GET|POST http://server<:port>/geo/<host>
 
 ### Example Request/Respose
 

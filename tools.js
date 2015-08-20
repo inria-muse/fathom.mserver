@@ -279,7 +279,7 @@ var _mtr = exports.mtr = function(cb, ip, args) {
       if (result.hops.length > 1 && 
            (result.hops[result.hops.length-1].address === 
             result.hops[result.hops.length-2].address)) {
-         result.hops = result.hops.slice(0,r.hops.length-1);
+         result.hops = result.hops.slice(0,result.hops.length-1);
       }
    }); // exec
 }; //mtr
