@@ -186,7 +186,7 @@ app.enable('trust proxy');
 app.use(bodyParser.json());
 
 // CORS
-var whitelist = ['https://muse.inria.fr'];
+var whitelist = ['https://muse.inria.fr','http://muse.inria.fr'];
 var corsOptions = {
   origin: function(origin, callback){
     var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
