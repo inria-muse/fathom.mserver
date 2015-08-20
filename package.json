@@ -17,6 +17,7 @@
     "node-whois" : "latest",
     "ws" : "latest",
     "express-ws": "latest",
-    "moment" : "latest"
+    "moment" : "latest",
+    "cors" : "latest"
   }
 }

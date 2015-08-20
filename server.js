@@ -37,6 +37,7 @@ var redis = require('redis');
 var express = require('express');
 var bodyParser = require('body-parser');
 var moment = require("moment");
+var cors = cors = require('cors');
 
 var tools = require('./tools');
 var utils = require('./utils');
@@ -52,9 +53,7 @@ const MAX_PER_IP = parseInt(process.env['MAX_PER_IP']) || 10;
 
 // requests per hour per IP (across cluster)
 const REQS_PER_IP = parseInt(process.env['REQS_PER_IP']) || 30;
-
 const REQS_PER_IP_IV = 3600; // 1h in seconds
-
 
 // redis client
 var db = redis.createClient();
@@ -185,6 +184,16 @@ app.enable('trust proxy');
 
 // middleware
 app.use(bodyParser.json());
+
+// CORS
+var whitelist = ['https://muse.inria.fr'];
+var corsOptions = {
+  origin: function(origin, callback){
+    var originIsWhitelisted = whitelist.indexOf(origin) !== -1;
+    callback(null, originIsWhitelisted);
+  }
+};
+app.use(cors());
 
 // generic err handler
 app.use(function(err, req, res, next) {
