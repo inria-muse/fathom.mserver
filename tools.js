@@ -219,6 +219,9 @@ var _ping = exports.ping = function(cb, ip, args) {
 
 /** Traceroute to given IP. */
 var _mtr = exports.mtr = function(cb, ip, args) {
+   if (!args['c'])
+     args['c'] = 3;
+
    var cmd = buildcmd('mtr',args,'--raw '+ip); 
    debug(cmd);
 
