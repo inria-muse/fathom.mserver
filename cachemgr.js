@@ -49,10 +49,12 @@ var updateOUIcache = function() {
 	var db = redis.createClient();
 	if (!db) {
 		debug("redis create failed");
+		process.exit(1);
 	}
 
 	db.on("error", function (err) {
 		debug("redis connect or fatal error: " + err);
+ 		process.exit(2);
 	});
 
 	db.set('mac:lastwritets', Date.now());

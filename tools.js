@@ -42,7 +42,10 @@ var whois = require('node-whois');
 var buildcmd = function(cmd, args, tail) {
   cmd += ' ';
   cmd += _.map(args, function(v,k) {
-    var tmp = '-'+k+' '+v;
+    var tmp = '-'+k;
+    if (v != null) {
+       tmp += ' '+v;
+    }
     return "'" + tmp.replace(/'/g,"\'") + "'";
   }).join(' ');
 
@@ -222,6 +225,7 @@ var _ping = exports.ping = function(cb, ip, args) {
 var _mtr = exports.mtr = function(cb, ip, args) {
    if (!args['c'])
      args['c'] = 3;
+    args['n'] = null;
 
    var cmd = buildcmd('mtr',args,'--raw '+ip); 
    debug(cmd);

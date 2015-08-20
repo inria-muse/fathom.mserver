@@ -10,6 +10,7 @@
     "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
+	"OUICACHE" : "86400",
 	"DEBUG"    : "fathom.mserver.cache"
     }
   },{
