@@ -1,0 +1,30 @@
+{
+  "apps" : [{
+    "name"         : "fathomapi-cache",
+    "script"       : "cachemgr.js",
+    "instances"    : "1",
+    "env": {
+        "NODE_ENV" : "development",
+        "OUICACHE" : "3600",
+    	"DEBUG"    : "*"
+    }
+  },{
+    "name"         : "fathomapi",
+    "script"       : "server.js",
+    "instances"    : "1",
+    "env": {
+        "NODE_ENV" : "development",
+	    "PORT"     : "3004",
+    	"DEBUG"    : "*"
+    }
+  },{
+    "name"         : "fathomapi-ping",
+    "script"       : "pingserver.js",
+    "instances"    : "1",
+    "env": {
+        "NODE_ENV" : "development",
+	    "PORT"     : "5790",
+	    "DEBUG"    : "*"
+    }
+  }]
+}

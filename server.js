@@ -31,29 +31,55 @@
  */
 
 // external dependencies
-var debug = require('debug')('fathom.mserver')
+var debug = require('debug')('fathomapi')
 var _ = require('underscore');
 var redis = require('redis');
 var express = require('express');
 var bodyParser = require('body-parser');
 var moment = require("moment");
-var cors = cors = require('cors');
-
+var cors = require('cors');
+var os = require('os');
 var tools = require('./tools');
 var utils = require('./utils');
 
+// redis db
+const redisdb = parseInt(process.env.REDISDB) || 4;
 // server listening port
-const PORT = parseInt(process.env.PORT) || 3000;
-
+const PORT = parseInt(process.env.PORT) || 3004;
+// max worker processes (ping, mtr)
 const MAX_WORKER_PROCS = parseInt(process.env['MAX_WORKER_PROCS']) || 500;
-var curr_procs = 0; // watching per worker
-
 // max simultaneous reqs per IP (across cluster)
 const MAX_PER_IP = parseInt(process.env['MAX_PER_IP']) || 10;
-
 // requests per hour per IP (across cluster)
 const REQS_PER_IP = parseInt(process.env['REQS_PER_IP']) || 30;
 const REQS_PER_IP_IV = 3600; // 1h in seconds
+
+var curr_procs = 0; // watching per worker
+
+process.on('uncaughtException', function(e) {
+    debug('got unhandled exception');
+    debug(e instanceof Error ? e.message : e);
+    console.error(e);
+    throw e;
+});
+
+// resolve some server info that we can send to the clients
+var iface = _.find(_.flatten(_.values(os.networkInterfaces())), function(iface) { return (iface.family === 'IPv4' && !iface.internal); });
+var serverinfo = {
+    hostname : os.hostname(),
+    ipv4 : (iface ? iface.address : undefined)
+}
+
+if (iface) {
+    tools.geo(function(err, result) {
+        if (!err) {
+            serverinfo.geo = result;
+        }
+        debug("serverinfo " + JSON.stringify(serverinfo));
+    }, serverinfo.ipv4);
+} else {
+    debug("serverinfo " + JSON.stringify(serverinfo));
+}
 
 // redis client
 var db = redis.createClient();
@@ -61,6 +87,10 @@ if (!db) {
     debug("redis create failed");
     process.exit(1);
 }
+db.select(redisdb, function(err) {
+    if (err)
+        debug("redis select error: " + err);
+});
 db.on("error", function (err) {
     debug("redis connect or fatal error: " + err);
     process.exit(1);
@@ -239,10 +269,13 @@ app.use(function(req, res, next) {
 });
 
 // returns some basic stats about the server
-app.get('/', function(req, res) {
+app.get('/status', function(req, res) {
 	db.hgetall(REDISOBJ, function(err, obj) {
         res.type('text/plain');
         obj.uptime = "Started " + moment(new Date(obj.start).getTime()).fromNow();
+        obj.desc = "Fathom upload server";
+        obj.copy = "Copyright 2014-2015 MUSE Inria Paris-Rocquencourt";
+        obj.contact = "muse.fathom@inria.fr";
         res.status(200).send(JSON.stringify(obj,null,4));
 	});
 });

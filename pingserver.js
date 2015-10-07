@@ -22,54 +22,50 @@
    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
    SOFTWARE.
-*/
+   */
 
 /**
  * @fileoverfiew UDP echo server for RTT measurements.
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-
-var debug = require('debug')('fathom.mserver.ping');
+var debug = require('debug')('fathomapiping');
 var dgram = require('dgram');
 var TS = require('./utils').TS;
+
+const port = parseInt(process.env.PORT) || 5790;
 
 function server(port) {
     var srv = dgram.createSocket('udp4');
     var tr = new TS();
 
     srv.on('message', function(buf,rinfo) {
-	var ts = tr.getts();
-	debug("req from " + rinfo.address + ":" + rinfo.port);
+      	var ts = tr.getts();
+      	debug("req from " + rinfo.address + ":" + rinfo.port);
 
-	var data = buf.toString('utf8');
-	try {
-	    var obj = JSON.parse(data);	
-	    if (obj!==undefined && obj.seq!==undefined) {
-		obj.r = ts;
-		obj.ra = rinfo.address;
-		obj.rp = rinfo.port;
+        var data = buf.toString('utf8');
+        try {
+            var obj = JSON.parse(data);	
+            if (obj!==undefined && obj.seq!==undefined) {
+                obj.r = ts;
+                obj.ra = rinfo.address;
+                obj.rp = rinfo.port;
 
-		var respstr = JSON.stringify(obj);
-		var bufout = new Buffer(respstr,'utf8');
-		srv.send(bufout,0,bufout.length,rinfo.port,rinfo.address);
-	    }
-	} catch (e) {
-	    debug('malformed ping request: '+e);
-	    debug(data);
-	}
+                var respstr = JSON.stringify(obj);
+                var bufout = new Buffer(respstr,'utf8');
+                srv.send(bufout,0,bufout.length,rinfo.port,rinfo.address);
+            }
+        } catch (e) {
+            debug('malformed ping request: '+e);
+            debug(data);
+        }
     });
 
     srv.on('error', function(e) {		    
-	debug('udp error: '+e);
+    	debug('udp error: '+e);
     });
 
     srv.bind(port);
     debug("udp pingserver listening on *:"+port+"...");
 };
 
-// start server at proto:port
-var port = parseInt(process.env.PORT) || 5790;
 server(port);
-
-
-

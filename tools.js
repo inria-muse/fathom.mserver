@@ -26,14 +26,10 @@
 
 /**
  * @fileoverfiew Tools.
- *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-
-var debug = require('debug')('fathom.mserver')
-
+var debug = require('debug')('fathomapi:tools')
 var exec = require('child_process').exec;
-
 var _ = require('underscore');
 var ipaddr = require('ipaddr.js');
 var whois = require('node-whois');
@@ -162,7 +158,6 @@ var _geo = exports.geo = function(cb, ip) {
       cb({ error : 'invalid ip: ' + ip }, undefined);
    }
 }; // geo
-
 
 /** Ping given IP. */
 var _ping = exports.ping = function(cb, ip, args) {
@@ -293,4 +288,3 @@ var _mtr = exports.mtr = function(cb, ip, args) {
       cb(undefined, result);
    }); // exec
 }; //mtr
-

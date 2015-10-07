@@ -29,17 +29,14 @@
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-
-var debug = require('debug')('fathom.mserver.cache')
-
+var debug = require('debug')('fathomapicache')
 var _ = require('underscore');
 var http = require('http');
 var redis = require('redis');
 
 // some configs
 const OUIDB = "http://standards.ieee.org/develop/regauth/oui/oui.txt";
-
-var UPDATE_FREQ = parseInt(process.env['OUICACHE']) || -1; // only do once
+const UPDATE_FREQ = parseInt(process.env['OUICACHE']) || -1; // only do once
 
 /** Update the manufacturer information from the IEEE. */
 var updateOUIcache = function() {

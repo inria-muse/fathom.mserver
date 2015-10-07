@@ -11,11 +11,10 @@ $ npm install pm2@latest -g
 ## Running
 
 The app is managed by pm2 ('pm2 start processes.json' or 'npm start').
+Use the processes.devel.json when testing locally.
 
 Run 'pm2 save' to store the currently running apps so that they will be 
 restarted upon reboot.
-
-
 
 ## What's my IP
 
@@ -25,7 +24,7 @@ Return the client public IP and reverse DNS host name.
 	
 ### Example Request/Respose
 
-	wget -q -O- http://localhost:3000/ip | python -mjson.tool
+	wget -q -O- http://localhost:3004/ip | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": "localhost",
@@ -40,7 +39,7 @@ Whois lookup of given IP, or if missing, the client public IP.
 	
 ### Example Request/Respose
 
-	wget -q -O- http://localhost:3000/whois/128.93.165.1 | python -mjson.tool
+	wget -q -O- http://localhost:3004/whois/128.93.165.1 | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": {
@@ -61,7 +60,7 @@ manufacturer information.
 
 ### Example Request/Respose
 
-	$ wget -q -O- --method=GET http://localhost:3000/mac/406c8f | python -mjson.tool
+	$ wget -q -O- --method=GET http://localhost:3004/mac/406c8f | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": {
@@ -76,15 +75,16 @@ manufacturer information.
 
 ## Traceroute
 
-Run traceroute to the requested IP, or if missing, to the client (public) IP.
+Run traceroute to the requested IP, or if missing, to the client (public) IP.If geo=true, 
+returns the geo-location of each hop.
 
-	GET|POST http://server<:port>/mtr/<host>	
+	GET|POST http://server<:port>/mtr/<host>(?geo=true)
 
 ### Example Request/Respose
 
-	$ wget -q -O- --method=GET http://localhost:3000/mtr/88.173.211.195 | python -mjson.tool
+	$ wget -q -O- --method=GET http://localhost:3004/mtr/88.173.211.195 | python -mjson.tool
 	{
-	    "ip": "88.173.211.195",
+	    "ip": "127.0.0.1",
 	    "result": {
 	        "cmd": "mtr",
 	        "cmdline": "mtr '-c 3' --raw 88.173.211.195",
@@ -119,13 +119,14 @@ Run traceroute to the requested IP, or if missing, to the client (public) IP.
            
 ## Ping
 
-Run ping tot he requested IP/host, or if missing, to the client (public) IP.
+Run ping to the requested IP/host, or if missing, to the client (public) IP. If geo=true, 
+returns the geo-location of the sources and destination IPs.
 
-	GET|POST http://server<:port>/ping/<host>
+	GET|POST http://server<:port>/ping/<host>(?geo=true)
 
 ### Example Request/Response
 
-	wget -q -O- --method=GET http://localhost:3000/ping/www.google.com | python -mjson.tool
+	wget -q -O- --method=GET http://localhost:3004/ping/www.google.com | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": {
@@ -147,7 +148,6 @@ Run ping tot he requested IP/host, or if missing, to the client (public) IP.
 	    "ts": 1439826786536
 	}
 
-
 ## Geolocation
 
 The geolocation is based on a locally installed MaxMind DB (lite by default 
@@ -159,13 +159,12 @@ the service responds with the geolocation of the public IP of the request.
 
 ### Example Request/Respose
 
-	$ wget -q -O- --method=GET http://localhost:3000/geo/128.93.165.1 | python -mjson.tool
+	$ wget -q -O- --method=GET http://localhost:3004/geoip/128.93.165.1 | python -mjson.tool
 	{
 		"ts"  : 1406894147226,
-		"ip" : "127.0.0.1",
+	    "ip": "127.0.0.1",
 		"result" : {
 			"cc" : "FR",
 			"country" : "France"
 		}
 	}
-

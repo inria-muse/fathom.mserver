@@ -1,7 +1,7 @@
 {
   "name": "fathom.mserver",
-  "description": "Fathom Measurements REST API",
-  "version": "0.0.3",
+  "description": "Fathom Measurement API",
+  "version": "0.0.4",
   "private": true,
   "scripts": {
     "start": "pm2 start processes.json",

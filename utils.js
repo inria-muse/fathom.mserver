@@ -29,8 +29,7 @@
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-
-var debug = require('debug')('fathom.mserver')
+var debug = require('debug')('fathomapi:utils')
 var _ = require('underscore');
 
 /* Timestamp helper */
