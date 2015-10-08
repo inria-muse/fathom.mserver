@@ -1,14 +1,5 @@
 {
   "apps" : [{
-    "name"         : "fathomapi-cache",
-    "script"       : "cachemgr.js",
-    "instances"    : "1",
-    "env": {
-        "NODE_ENV" : "development",
-        "OUICACHE" : "3600",
-    	"DEBUG"    : "*"
-    }
-  },{
     "name"         : "fathomapi",
     "script"       : "server.js",
     "instances"    : "1",

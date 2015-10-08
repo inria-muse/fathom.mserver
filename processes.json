@@ -1,19 +1,5 @@
 {
   "apps" : [{
-    "name"         : "fathomapi-cache",
-    "script"       : "cachemgr.js",
-    "error_file"   : "/home/nodeapp/logs/fathomapi-cache.log",
-    "out_file"     : "/home/nodeapp/logs/fathomapi-cache.log",
-    "pid_file"     : "/home/nodeapp/pids/fathomapi-cache",
-    "run_as_user"  : "nodeapp",	
-    "run_as_group" : "nodeapp",
-    "cwd"          : "/home/nodeapp/apps/fathomapi",
-    "env": {
-        "NODE_ENV" : "production",
-    	"OUICACHE" : "86400",
- 	    "DEBUG"    : "fathomapicache"
-    }
-  },{
     "name"         : "fathomapi",
     "script"       : "server.js",
     "instances"    : "3",
