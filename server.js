@@ -42,24 +42,32 @@ var os = require('os');
 var tools = require('./tools');
 var utils = require('./utils');
 
+//---- configs ---
+
 // redis db
-const redisdb = parseInt(process.env.REDISDB) || 4;
+const REDISDB = (process.env.REDISDB ? parseInt(process.env.REDISDB) : 4);
+
 // server listening port
-const PORT = parseInt(process.env.PORT) || 3004;
+const PORT = (process.env.PORT ? parseInt(process.env.PORT) : 3004);
+
 // max worker processes (ping, mtr)
-const MAX_WORKER_PROCS = parseInt(process.env['MAX_WORKER_PROCS']) || 500;
+const MAX_WORKER_PROCS = (process.env['MAX_WORKER_PROCS'] ? parseInt(process.env['MAX_WORKER_PROCS']) : 500);
+
 // max simultaneous reqs per IP (across cluster)
-const MAX_PER_IP = parseInt(process.env['MAX_PER_IP']) || 10;
-// requests per hour per IP (across cluster)
-const REQS_PER_IP = parseInt(process.env['REQS_PER_IP']) || 30;
-const REQS_PER_IP_IV = 3600; // 1h in seconds
+const MAX_PER_IP = (process.env['MAX_PER_IP'] ? parseInt(process.env['MAX_PER_IP']) : 10);
+
+// requests per IV per IP (across cluster)
+const REQS_PER_IP = (process.env['REQS_PER_IP'] ? parseInt(process.env['REQS_PER_IP']) : 30);
+
+// IV in seconds
+const REQS_PER_IP_IV = (process.env['REQS_PER_IP_IV'] ? parseInt(process.env['REQS_PER_IP_IV']) : 3600); 
+
+//------
 
 var curr_procs = 0; // watching per worker
 
 process.on('uncaughtException', function(e) {
-    debug('got unhandled exception');
-    debug(e instanceof Error ? e.message : e);
-    console.error(e);
+    debug('unhandled exception: ' +(e instanceof Error ? e.message : e));
     throw e;
 });
 
@@ -87,7 +95,7 @@ if (!db) {
     debug("redis create failed");
     process.exit(1);
 }
-db.select(redisdb, function(err) {
+db.select(REDISDB, function(err) {
     if (err)
         debug("redis select error: " + err);
 });
@@ -142,6 +150,7 @@ var rediserr = function(err, res) {
 	if (err) debug("redis error: " + err);
 };
 
+// req rate limit checker
 var checkiprates = function(cb, ip) {
 	db.hgetall("ratelim:"+ip, function(err, obj) {
 		var ts = Date.now();
@@ -177,6 +186,7 @@ var senderror = function(req, res, err) {
 	err = err || { error : "internal server error" };
 	err['ts'] = Date.now();
 	err['ip'] = req.clientip;	
+    err['serverinfo'] = serverinfo;
 
 	var tmpobj = {};
     tmpobj["last_error"] = err['ts'];
@@ -196,6 +206,10 @@ var sendresp = function(req, res, obj, what) {
     db.hmset(REDISOBJ, tmpobj, rediserr);
     db.hincrby(REDISOBJ, what, 1, rediserr);
 	db.hincrby("ratelim:"+req.clientip, 'running', -1, rediserr);
+
+    // common data
+    obj['serverinfo'] = serverinfo;
+    obj['ip'] = req.clientip;   
 
     res.type('application/json');
     res.status(200).send(obj);
@@ -249,6 +263,7 @@ app.use(function(req, res, next) {
 	          req.socket.remoteAddress ||
 	          req.connection.socket.remoteAddress ||
 	          req.ip);
+
 	ip = ip.replace('::ffff:','').trim();
 	req.clientip = ip
 	debug("connection from " + ip);
@@ -272,6 +287,9 @@ app.use(function(req, res, next) {
 app.get('/status', function(req, res) {
 	db.hgetall(REDISOBJ, function(err, obj) {
         res.type('text/plain');
+        obj.ts = new Date();
+        obj.serverinfo = serverinfo;
+        obj.ip = req.clientip;
         obj.uptime = "Started " + moment(new Date(obj.start).getTime()).fromNow();
         obj.desc = "Fathom upload server";
         obj.copy = "Copyright 2014-2015 MUSE Inria Paris-Rocquencourt";
@@ -284,7 +302,6 @@ app.get('/status', function(req, res) {
 app.all('/fulllookup', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : {}
 	};
 
@@ -311,16 +328,15 @@ app.all('/fulllookup', function(req, res) {
 
 				sendresp(req, res, obj, 'fulllookup');
 
-			}, obj['ip']);					
-		}, obj['ip']);			
-	}, obj['ip']);
+			}, req.clientip);					
+		}, req.clientip);			
+	}, req.clientip);
 });
 
-// basic ip lookup
+// basic ip + rev dns lookup
 app.all('/ip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 
@@ -331,14 +347,13 @@ app.all('/ip', function(req, res) {
 			obj.result = result;
 			sendresp(req, res, obj, 'iplookup');
 		}
-	}, obj['ip']);
+	}, req.clientip);
 });
 
 // mac address lookup
 app.all('/mac/:mac', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 
@@ -366,7 +381,6 @@ app.all('/mac/:mac', function(req, res) {
 app.all('/geoip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 
@@ -377,14 +391,13 @@ app.all('/geoip', function(req, res) {
 			obj.result = result;
 			sendresp(req, res, obj, 'geolookup');
 		}
-	}, obj['ip']);
+	}, req.clientip);
 });
 
 // resolve any requested IP geolocation (req.params.ip)
 app.all('/geoip/:ip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 	tools.geo(function(err, result) {
@@ -401,7 +414,6 @@ app.all('/geoip/:ip', function(req, res) {
 app.all('/whois', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 	tools.whois(function(err, result) {
@@ -411,14 +423,13 @@ app.all('/whois', function(req, res) {
 			obj.result = result;
 			sendresp(req, res, obj, 'whois');
 		}
-	}, obj['ip']);
+	}, req.clientip);
 });
 
 // whois requested IP (req.params.ip)
 app.all('/whois/:ip', function(req, res) {
 	var obj = {
 		'ts' : Date.now(),
-		'ip' : req.clientip,
 		'result'  : undefined
 	};
 	tools.whois(function(err, result) {
@@ -431,84 +442,98 @@ app.all('/whois/:ip', function(req, res) {
 	}, req.params.ip);
 });
 
-// run reverse traceroute (to req.ip)
+// run reverse traceroute
+var mtr = function(ip, req, res) {
+    var obj = {
+        'ts' : Date.now(),
+        'result'  : undefined
+    };
+
+    var dogeo = req.query.geo;
+    if (dogeo)
+        delete req.query.geo;
+
+    curr_procs += 1;
+    tools.mtr(function(err, result) {
+        curr_procs -= 1;
+        if (err) {
+            senderror(req, res, err);
+        } else {
+            obj.result = result;
+
+            // resolve dst geoloc?
+            if (dogeo) {
+                var r = 0;
+                _.each(obj.result.hops, function(h) {
+                    debug(JSON.stringify(h));
+                    if (!h || !h.address) {
+                        r += 1;
+                        return;
+                    }
+
+                    tools.geo(function(err, result) {
+                        r += 1;
+                        if (!err) {
+                            h.geo = result;
+                        }
+
+                        // all callbacks done
+                        if (r == obj.result.hops.length)
+                            sendresp(req, res, obj, 'revmtr');
+
+                    }, h.address);
+                });
+            } else {
+                sendresp(req, res, obj, 'revmtr');                
+            }
+        }
+    }, ip, req.query);
+}
 app.all('/mtr', function(req, res) {
-	var obj = {
-		'ts' : Date.now(),
-		'ip' : req.clientip,
-		'result'  : undefined
-	};
-
-    curr_procs += 1;
-	tools.mtr(function(err, result) {
-		curr_procs -= 1;
-		if (err) {
-		    senderror(req, res, err);
-		} else {
-			obj.result = result;
-			sendresp(req, res, obj, 'revmtr');
-		}
-	}, obj['ip'], req.query);
+    mtr(req.clientip, req, res);
 });
-
-// run reverse traceroute (to req.params.ip)
 app.all('/mtr/:ip', function(req, res) {
-	var obj = {
-		'ts' : Date.now(),
-		'ip' : req.clientip,
-		'result'  : undefined
-	};
-
-    curr_procs += 1;
-	tools.mtr(function(err, result) {
-		curr_procs -= 1;
-		if (err) {
-		    senderror(req, res, err);
-		} else {
-			obj.result = result;
-			sendresp(req, res, obj, 'revmtr');
-		}
-	}, req.params.ip, req.query);
+    mtr(req.params.ip, req, res);
 });
 
-// run reverse ping (to req.ip)
+// run reverse ping
+var ping = function(ip, req, res) {
+    var obj = {
+        'ts' : Date.now(),
+        'result'  : undefined
+    };
+
+    var dogeo = req.query.geo;
+    if (dogeo)
+        delete req.query.geo;
+
+    curr_procs += 1;
+    tools.ping(function(err, result) {
+        curr_procs -= 1;
+        if (err) {
+            senderror(req, res, err);
+        } else {
+            obj.result = result;
+
+            // resolve dst geoloc?
+            if (dogeo) {
+                tools.geo(function(err, result) {
+                    if (!err) {
+                        obj.result.geo = result;
+                    }
+                    sendresp(req, res, obj, 'revping');                
+                }, obj.result.dst_ip);
+            } else {
+                sendresp(req, res, obj, 'revping');                
+            }
+        }
+    }, ip, req.query);    
+}
 app.all('/ping', function(req, res) {
-	var obj = {
-		'ts' : Date.now(),
-		'ip' : req.clientip,
-		'result'  : undefined
-	};
-
-    curr_procs += 1;
-	tools.ping(function(err, result) {
-		curr_procs -= 1;
-		if (err) {
-		    senderror(req, res, err);
-		} else {
-			obj.result = result;
-			sendresp(req, res, obj, 'revping');
-		}
-	}, obj['ip'], req.query);
+    ping(req.clientip, req, res);
 });
-
-// run reverse ping (to req.ip)
 app.all('/ping/:ip', function(req, res) {
-	var obj = {
-		'ts' : Date.now(),
-		'ip' : req.clientip,
-		'result'  : undefined
-	};
-
-    curr_procs += 1;
-	tools.ping(function(err, result) {
-		curr_procs -= 1;
-		if (err) {
-		    senderror(req, res, err);
-		} else {
-			obj.result = result;
-			sendresp(req, res, obj, 'revping');
-		}
-	}, req.params.ip, req.query);
+    ping(req.params.ip, req, res);
 });
 
 // websocket ping

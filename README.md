@@ -3,10 +3,12 @@
 Node REST API to support various lookups and reverse measurements
 for Fathom extension.
 
+
 ## Dependencies
 
 $ apt-get install geoip-bin libgeoip1 redis-server 
 $ npm install pm2@latest -g
+
 
 ## Running
 
@@ -15,6 +17,12 @@ Use the processes.devel.json when testing locally.
 
 Run 'pm2 save' to store the currently running apps so that they will be 
 restarted upon reboot.
+
+
+## Server status
+
+   GET http://server<:port>/status
+
 
 ## What's my IP
 
@@ -28,8 +36,18 @@ Return the client public IP and reverse DNS host name.
 	{
 	    "ip": "127.0.0.1",
 	    "result": "localhost",
+		"serverinfo": {
+	        "geo": {
+	            "cc": "FR",
+	            "country": "France",
+	            "ip": "128.93.62.39"
+	        },
+	        "hostname": "Quadstation-Linux",
+	        "ipv4": "128.93.62.39"
+	    },    
 	    "ts": 1439816776789
 	}
+
 
 ## Whois
 
@@ -46,8 +64,18 @@ Whois lookup of given IP, or if missing, the client public IP.
 	        "asblock": { ... },
 	        "netblock": { ... }
 	    },
+		"serverinfo": {
+	        "geo": {
+	            "cc": "FR",
+	            "country": "France",
+	            "ip": "128.93.62.39"
+	        },
+	        "hostname": "Quadstation-Linux",
+	        "ipv4": "128.93.62.39"
+	    },    
 	    "ts": 1439817132343
 	}
+
 
 ## Mac address lookup
 
@@ -73,6 +101,7 @@ manufacturer information.
 	    "ts": 1440055578862
 	}
 
+
 ## Traceroute
 
 Run traceroute to the requested IP, or if missing, to the client (public) IP.If geo=true, 
@@ -82,41 +111,74 @@ returns the geo-location of each hop.
 
 ### Example Request/Respose
 
-	$ wget -q -O- --method=GET http://localhost:3004/mtr/88.173.211.195 | python -mjson.tool
+	$ wget -q -O- --method=GET http://localhost:3004/mtr/88.173.211.195?geo=true | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": {
 	        "cmd": "mtr",
-	        "cmdline": "mtr '-c 3' --raw 88.173.211.195",
+	        "cmdline": "mtr '-c 3' '-n' --raw 88.173.211.195",
 	        "dst": "88.173.211.195",
 	        "hops": [
 	            {
-	                "address": "128.93.165.14",
+	                "address": "128.93.1.100",
+	                "geo": {
+	                    "cc": "FR",
+	                    "country": "France",
+	                    "ip": "128.93.1.100"
+	                },
 	                "missed": 0,
 	                "rtt": [
-	                    1.079,
-	                    1.053,
-	                    1.063
+	                    1.544,
+	                    1.53,
+	                    1.336
 	                ]
 	            },
 	            {
 	                "address": "192.93.1.105",
-	                "hostname": "rocq-renater-gw.inria.fr",
+	                "geo": {
+	                    "cc": "FR",
+	                    "country": "France",
+	                    "ip": "192.93.1.105"
+	                },
 	                "missed": 0,
 	                "rtt": [
-	                    1.228,
-	                    1.223,
-	                    1.243
+	                    1.731,
+	                    1.672,
+	                    1.564
 	                ]
 	            },
 	            ...
-	        ],
+	            {
+	                "address": "88.173.211.195",
+	                "geo": {
+	                    "cc": "FR",
+	                    "country": "France",
+	                    "ip": "88.173.211.195"
+	                },
+	                "missed": 0,
+	                "rtt": [
+	                    24.294,
+	                    23.647,
+	                    23.736
+	                ]
+	            }	              
+	         ],
 	        "nqueries": 3,
 	        "success": true
 	    },
-	    "ts": 1440057255115
-	} 
-           
+	    "serverinfo": {
+	        "geo": {
+	            "cc": "FR",
+	            "country": "France",
+	            "ip": "128.93.62.39"
+	        },
+	        "hostname": "Quadstation-Linux",
+	        "ipv4": "128.93.62.39"
+	    },
+	    "ts": 1444294738558
+	}
+
+
 ## Ping
 
 Run ping to the requested IP/host, or if missing, to the client (public) IP. If geo=true, 
@@ -126,7 +188,7 @@ returns the geo-location of the sources and destination IPs.
 
 ### Example Request/Response
 
-	wget -q -O- --method=GET http://localhost:3004/ping/www.google.com | python -mjson.tool
+	wget -q -O- --method=GET http://localhost:3004/ping/www.google.com?geo=true | python -mjson.tool
 	{
 	    "ip": "127.0.0.1",
 	    "result": {
@@ -135,18 +197,32 @@ returns the geo-location of the sources and destination IPs.
 	        "cmdline": "ping '-c 5' www.google.com",
 	        "count": 5,
 	        "dst": "www.google.com",
-	        "dst_ip": "74.125.195.147",
+	        "dst_ip": "74.125.195.99",
+	        "geo": {
+	            "cc": "US",
+	            "country": "United States",
+	            "ip": "74.125.195.99"
+	        },
 	        "lost": 0,
 	        "rtt": [
-	            7.464,
-	            7.821,
-	            7.455,
-	            9.315,
-	            7.539
-	        ]
+	            7.89,
+	            8.06,
+	            7.88,
+	            7.91,
+	            7.79
+	        ]},
+	    "serverinfo": {
+	        "geo": {
+	            "cc": "FR",
+	            "country": "France",
+	            "ip": "128.93.62.39"
+	        },
+	        "hostname": "Quadstation-Linux",
+	        "ipv4": "128.93.62.39"
 	    },
-	    "ts": 1439826786536
+	    "ts": 1444294225024
 	}
+
 
 ## Geolocation
 
@@ -161,10 +237,20 @@ the service responds with the geolocation of the public IP of the request.
 
 	$ wget -q -O- --method=GET http://localhost:3004/geoip/128.93.165.1 | python -mjson.tool
 	{
-		"ts"  : 1406894147226,
 	    "ip": "127.0.0.1",
-		"result" : {
-			"cc" : "FR",
-			"country" : "France"
-		}
-	}
+	    "result": {
+	        "cc": "FR",
+	        "country": "France",
+	        "ip": "128.93.165.1"
+	    },
+	    "serverinfo": {
+	        "geo": {
+	            "cc": "FR",
+	            "country": "France",
+	            "ip": "128.93.62.39"
+	        },
+	        "hostname": "Quadstation-Linux",
+	        "ipv4": "128.93.62.39"
+	    },
+	    "ts": 1444294291264
+	}	
