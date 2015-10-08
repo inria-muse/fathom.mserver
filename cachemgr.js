@@ -35,7 +35,7 @@ var http = require('http');
 var redis = require('redis');
 
 // some configs
-const OUIDB = "http://standards.ieee.org/develop/regauth/oui/oui.txt";
+const OUIDB = "http://standards-oui.ieee.org/oui.txt";
 const UPDATE_FREQ = parseInt(process.env['OUICACHE']) || -1; // only do once
 
 /** Update the manufacturer information from the IEEE. */
