@@ -32,7 +32,7 @@
 var debug = require('debug')('fathomapi:utils')
 var _ = require('underscore');
 
-/* Timestamp helper */
+/** Timestamp helper */
 exports.TS = function TS() {
     // current time is calculated as baseTime + (process.hrtime() - baseTimeHr)
     var baseTime = new Date().getTime(); // milliseconds

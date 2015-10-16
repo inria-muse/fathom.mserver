@@ -203,6 +203,7 @@ var sendresp = function(req, res, obj, what) {
     var tmpobj = {};
     tmpobj["last_"+what] = new Date();
     tmpobj["last_"+what+"_ip"] = req.clientip;
+
     db.hmset(REDISOBJ, tmpobj, rediserr);
     db.hincrby(REDISOBJ, what, 1, rediserr);
 	db.hincrby("ratelim:"+req.clientip, 'running', -1, rediserr);
@@ -246,6 +247,9 @@ app.use(function(err, req, res, next) {
     senderror(req,res);
 });
 
+// static files such as clouds.json
+app.use('files',express.static('files'));
+
 // rate-limit heavier requests per worker
 app.use(/\/ping|\/mtr/, function(req, res, next) {
     if (curr_procs >= MAX_WORKER_PROCS) {
@@ -286,7 +290,6 @@ app.use(function(req, res, next) {
 // returns some basic stats about the server
 app.get('/status', function(req, res) {
 	db.hgetall(REDISOBJ, function(err, obj) {
-        res.type('text/plain');
         obj.ts = new Date();
         obj.serverinfo = serverinfo;
         obj.ip = req.clientip;
@@ -294,6 +297,8 @@ app.get('/status', function(req, res) {
         obj.desc = "Fathom upload server";
         obj.copy = "Copyright 2014-2015 MUSE Inria Paris-Rocquencourt";
         obj.contact = "muse.fathom@inria.fr";
+
+        res.type('text/plain');
         res.status(200).send(JSON.stringify(obj,null,4));
 	});
 });

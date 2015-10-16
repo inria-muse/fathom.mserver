@@ -28,7 +28,7 @@
  * @fileoverfiew Tools.
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-var debug = require('debug')('fathomapi:tools')
+var debug = require('debug')('fathomapi:tools');
 var exec = require('child_process').exec;
 var _ = require('underscore');
 var ipaddr = require('ipaddr.js');
@@ -51,9 +51,9 @@ var buildcmd = function(cmd, args, tail) {
   return cmd.replace(/\s+/g, ' ');
 };
 
-/** Reverse DNS lookup of ip (using 'host' command line too). */
+/** Reverse DNS lookup of ip (using 'dig -x'). */
 var _revdns = exports.reverseDns = function(cb, ip) {
-   var cmd = 'host ' + ip; 
+   var cmd = 'dig +short -x ' + ip; 
    debug('reverseDns::cmd: ' + cmd);
 
    exec(cmd, function(err, stdout, stderr) {
@@ -61,11 +61,8 @@ var _revdns = exports.reverseDns = function(cb, ip) {
          debug('reverseDns::error: ' + err);
          debug('reverseDns::stderr: ' + stderr);
          cb({ error : 'dns lookup failed: [' + err.code + ']' + stderr }, undefined);
-      } else if (stdout && stdout.indexOf('not found') < 0) {
-            var tmp = stdout.trim().split(' ');
-            cb(undefined, tmp[tmp.length-1].slice(0,-1));
       } else {
-         cb(undefined, undefined);
+         cb(undefined, stdout);
       }
    });
 };

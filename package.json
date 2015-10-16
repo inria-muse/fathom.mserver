@@ -18,6 +18,8 @@
     "ws" : "latest",
     "express-ws": "latest",
     "moment" : "latest",
-    "cors" : "latest"
+    "cors" : "latest",
+    "xml2js" : "latest",
+    "fs-extra" : "latest"
   }
 }
