@@ -1,7 +1,7 @@
 /*
    Fathom API server
 
-   Copyright (C) 2015 Inria Paris-Roquencourt 
+   Copyright (C) 2015-2016 Inria Paris-Roquencourt 
 
    The MIT License (MIT)
 
@@ -29,15 +29,15 @@
  */
 "use strict";
 
-var debug = require('debug')('fathomapiupdater');
-var _ = require('underscore');
-//var fs = require('fs');
-var fs = require('fs-extra');
 var path = require('path');
 var http = require('http');
 var https = require('https');
 var exec = require('child_process').exec;
+
+var fs = require('fs-extra');
+var _ = require('underscore');
 var parseString = require('xml2js').parseString;
+var debug = require('debug')('fathomapiupdater');
 
 var fetchripestats = function(prefix) {   
    return new Promise(function(resolve, reject) {

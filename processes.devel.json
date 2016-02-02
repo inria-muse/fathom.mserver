@@ -9,8 +9,8 @@
     	"DEBUG"    : "*"
     }
   },{
-    "name"         : "fathomapi-ping",
-    "script"       : "pingserver.js",
+    "name"         : "fathomapi-udpping",
+    "script"       : "udppingserver.js",
     "instances"    : "1",
     "env": {
         "NODE_ENV" : "development",

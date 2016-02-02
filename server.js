@@ -29,6 +29,7 @@
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
+var os = require('os');
 
 // external dependencies
 var debug = require('debug')('fathomapi')
@@ -38,7 +39,7 @@ var express = require('express');
 var bodyParser = require('body-parser');
 var moment = require("moment");
 var cors = require('cors');
-var os = require('os');
+
 var tools = require('./tools');
 var utils = require('./utils');
 
@@ -59,7 +60,7 @@ const MAX_PER_IP = (process.env['MAX_PER_IP'] ? parseInt(process.env['MAX_PER_IP
 // requests per IV per IP (across cluster)
 const REQS_PER_IP = (process.env['REQS_PER_IP'] ? parseInt(process.env['REQS_PER_IP']) : 30);
 
-// IV in seconds
+// IV in seconds (1h)
 const REQS_PER_IP_IV = (process.env['REQS_PER_IP_IV'] ? parseInt(process.env['REQS_PER_IP_IV']) : 3600); 
 
 //------
@@ -309,30 +310,13 @@ app.all('/fulllookup', function(req, res) {
 		'ts' : Date.now(),
 		'result'  : {}
 	};
-
 	tools.reverseDns(function(err, result) {
-		if (err) {
-		    senderror(req, res, err);
-		    return;
-		}
-		obj.result['ip'] = result;
-
+        obj.result['ip'] = err || result;
 		tools.geo(function(err, result) {
-			if (err) {
-			    senderror(req, res, err);
-			    return;
-			}
-			obj.result['geo'] = result;
-
+            obj.result['geo'] = err || result;
 			tools.whois(function(err, result) {
-				if (err) {
-				    senderror(req, res, err);
-				    return;
-				}
-				obj.result['whois'] = result;
-
+                obj.result['whois'] = err || result;
 				sendresp(req, res, obj, 'fulllookup');
-
 			}, req.clientip);					
 		}, req.clientip);			
 	}, req.clientip);

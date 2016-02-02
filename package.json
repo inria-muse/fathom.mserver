@@ -1,25 +1,23 @@
 {
   "name": "fathom.mserver",
   "description": "Fathom Measurement API",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "scripts": {
     "start": "pm2 start processes.json",
     "stop": "pm2 stop processes.json; pm2 delete processes.json;"
   },
   "dependencies": {
-    "ipaddr.js" : "latest",
-    "debug": "latest", 
-    "express": "4.x",
-    "body-parser" : "latest",
-    "redis": "latest",
-    "underscore": "latest",
-    "node-whois" : "latest",
-    "ws" : "latest",
-    "express-ws": "latest",
-    "moment" : "latest",
-    "cors" : "latest",
-    "xml2js" : "latest",
-    "fs-extra" : "latest"
+    "body-parser": "^1.14.2",
+    "cors": "^2.7.1",
+    "debug": "^2.2.0",
+    "express": "^4.13.4",
+    "express-ws": "^1.0.0",
+    "fs-extra": "^0.26.5",
+    "ipaddr.js": "^1.1.0",
+    "moment": "^2.11.1",
+    "redis": "^2.4.2",
+    "underscore": "^1.8.3",
+    "whois": "^2.1.5"
   }
 }

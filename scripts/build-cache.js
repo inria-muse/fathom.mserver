@@ -1,7 +1,7 @@
 /*
    Fathom API server
 
-   Copyright (C) 2015 Inria Paris-Roquencourt 
+   Copyright (C) 2015-2016 Inria Paris-Roquencourt 
 
    The MIT License (MIT)
 

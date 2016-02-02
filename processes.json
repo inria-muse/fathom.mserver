@@ -16,20 +16,20 @@
 	    "DEBUG"    : "fathomapi"
     }
   },{
-    "name"         : "fathomapi-ping",
-    "script"       : "pingserver.js",
+    "name"         : "fathomapi-udpping",
+    "script"       : "updpingserver.js",
     "instances"    : "3",
     "exec_mode"    : "cluster_mode",
-    "error_file"   : "/home/nodeapp/logs/fathomapi-ping.log",
-    "out_file"     : "/home/nodeapp/logs/fathomapi-ping.log",
-    "pid_file"     : "/home/nodeapp/pids/fathomapi-ping",
+    "error_file"   : "/home/nodeapp/logs/fathomapi-udpping.log",
+    "out_file"     : "/home/nodeapp/logs/fathomapi-udpping.log",
+    "pid_file"     : "/home/nodeapp/pids/fathomapi-udpping",
     "run_as_user"  : "nodeapp",	
     "run_as_group" : "nodeapp",
     "cwd"          : "/home/nodeapp/apps/fathomapi",
     "env": {
         "NODE_ENV" : "production",
     	"PORT"     : "5790",
-	    "DEBUG"    : "fathomapiping"
+	    "DEBUG"    : "fathomapi:ping"
     }
   }]
 }

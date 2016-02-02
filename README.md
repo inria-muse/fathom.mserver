@@ -78,12 +78,14 @@ Whois lookup of given IP, or if missing, the client public IP.
 
 ## Mac address lookup
 
-The API server reads once a day the latest OUI database from IEEE,
- 
+MAP MAC addresses to device manufacturer information based on info at:
+
 http://standards.ieee.org/develop/regauth/oui/oui.txt 
 
-, and provides a simple REST API for mapping MAC addresses to device 
-manufacturer information.
+The OUI data is cached in Redis db, make sure to update the source file and run 
+
+$ node/scripts/build-cache.js < script/oui.txt 
+
 
 ### Example Request/Respose
 
@@ -253,34 +255,3 @@ the service responds with the geolocation of the public IP of the request.
 	    },
 	    "ts": 1444294291264
 	}	
-
-
-## Cloud providers public IP ranges (JSON object)
-
-For whitelisting well-known cloud services in Fathom. The IP ranges are updated
-once a day from the providers public IP range data. Currently we watch for:
-
-   * Amazon AWS: https://ip-ranges.amazonaws.com/ip-ranges.json
-   * Microsoft Azure: http://www.microsoft.com/en-us/download/confirmation.aspx?id=41653
-   * Cloudflare: https://www.cloudflare.com/ips-v4, https://www.cloudflare.com/ips-v6
-   * Google App Engine: 'dig +short -t txt _netblocks.google.com'
-
-   GET http://server<:port>/files/clouds.json
-
-   wget -q -O- http://localhost:3004/files/clouds.json | python -mjson.tool
-   {
-  		"created" : ts,
-   		"providers" : {
-   			"aws" : [{ 
-   				"region" : "..", 
-   				"prefix" : "..", 
-   				"details" : { ... }
-   			},{ 
-   			...
-   			}],
-   			"azure" : [...],
-   			"cloudflare" : [...],
-   			"gae" : [...],
-   	    }
-	    "ts": 1439816776789
-   }

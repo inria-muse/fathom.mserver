@@ -1,7 +1,7 @@
 /*
    Fathom API server
 
-   Copyright (C) 2015 Inria Paris-Roquencourt 
+   Copyright (C) 2015-2016 Inria Paris-Roquencourt 
 
    The MIT License (MIT)
 
@@ -25,16 +25,16 @@
    */
 
 /**
- * @fileoverfiew UDP echo server for RTT measurements.
+ * @fileoverfiew Simple UDP echo server for RTT measurements.
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-var debug = require('debug')('fathomapiping');
 var dgram = require('dgram');
+var debug = require('debug')('fathomapi:ping');
 var TS = require('./utils').TS;
 
 const port = parseInt(process.env.PORT) || 5790;
 
-function server(port) {
+(function server() {
     var srv = dgram.createSocket('udp4');
     var tr = new TS();
 
@@ -65,7 +65,7 @@ function server(port) {
     });
 
     srv.bind(port);
-    debug("udp pingserver listening on *:"+port+"...");
-};
 
-server(port);
+    debug("udp pingserver listening on *:"+port+"...");
+
+}());

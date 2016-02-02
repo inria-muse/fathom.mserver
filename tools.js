@@ -1,7 +1,7 @@
 /*
    Fathom API server
 
-   Copyright (C) 2015 Inria Paris-Roquencourt 
+   Copyright (C) 2015-2016 Inria Paris-Roquencourt 
 
    The MIT License (MIT)
 
@@ -28,11 +28,13 @@
  * @fileoverfiew Tools.
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-var debug = require('debug')('fathomapi:tools');
 var exec = require('child_process').exec;
+
+var debug = require('debug')('fathomapi:tools');
+
 var _ = require('underscore');
 var ipaddr = require('ipaddr.js');
-var whois = require('node-whois');
+var whois = require('whois');
 
 // build sanitized sys exec command string from key-value dict
 var buildcmd = function(cmd, args, tail) {
@@ -62,7 +64,7 @@ var _revdns = exports.reverseDns = function(cb, ip) {
          debug('reverseDns::stderr: ' + stderr);
          cb({ error : 'dns lookup failed: [' + err.code + ']' + stderr }, undefined);
       } else {
-         cb(undefined, stdout);
+         cb(undefined, stdout.trim());
       }
    });
 };

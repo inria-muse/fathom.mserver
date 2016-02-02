@@ -1,7 +1,7 @@
 /*
    Fathom API server
 
-   Copyright (C) 2015 Inria Paris-Roquencourt 
+   Copyright (C) 2015-2016 Inria Paris-Roquencourt 
 
    The MIT License (MIT)
 
@@ -29,10 +29,8 @@
  *
  * @author Anna-Kaisa Pietilainen <anna-kaisa.pietilainen@inria.fr> 
  */
-var debug = require('debug')('fathomapi:utils')
-var _ = require('underscore');
 
-/** Timestamp helper */
+ /** Timestamp helper */
 exports.TS = function TS() {
     // current time is calculated as baseTime + (process.hrtime() - baseTimeHr)
     var baseTime = new Date().getTime(); // milliseconds
