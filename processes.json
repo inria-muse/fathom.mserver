@@ -17,7 +17,7 @@
     }
   },{
     "name"         : "fathomapi-udpping",
-    "script"       : "updpingserver.js",
+    "script"       : "udppingserver.js",
     "instances"    : "3",
     "exec_mode"    : "cluster_mode",
     "error_file"   : "/home/nodeapp/logs/fathomapi-udpping.log",
