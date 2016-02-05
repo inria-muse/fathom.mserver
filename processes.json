@@ -15,21 +15,5 @@
 	    "PORT"     : "3004",
 	    "DEBUG"    : "fathomapi"
     }
-  },{
-    "name"         : "fathomapi-udpping",
-    "script"       : "udppingserver.js",
-    "instances"    : "3",
-    "exec_mode"    : "cluster_mode",
-    "error_file"   : "/home/nodeapp/logs/fathomapi-udpping.log",
-    "out_file"     : "/home/nodeapp/logs/fathomapi-udpping.log",
-    "pid_file"     : "/home/nodeapp/pids/fathomapi-udpping",
-    "run_as_user"  : "nodeapp",	
-    "run_as_group" : "nodeapp",
-    "cwd"          : "/home/nodeapp/apps/fathomapi",
-    "env": {
-        "NODE_ENV" : "production",
-    	"PORT"     : "5790",
-	    "DEBUG"    : "fathomapi:ping"
-    }
   }]
 }
