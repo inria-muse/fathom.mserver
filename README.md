@@ -9,6 +9,11 @@ for Fathom extension.
 $ apt-get install geoip-bin libgeoip1 redis-server 
 $ npm install pm2@latest -g
 
+## Prerequisites
+
+Before first start, make sure you've cached the OUI (MAC address DB) to redis. To do this, do:
+
+$ cd scripts; cat oui.txt | DEBUG=* node build-cache.js
 
 ## Running
 
