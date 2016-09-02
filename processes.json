@@ -9,7 +9,7 @@
     "pid_file"     : "/home/nodeapp/pids/fathomapi",
     "run_as_user"  : "nodeapp",	
     "run_as_group" : "nodeapp",
-    "cwd"          : "/home/nodeapp/apps/fathomapi",
+    "cwd"          : "/home/nodeapp/apps/fathom.mserver",
     "env": {
         "NODE_ENV" : "production",
 	    "PORT"     : "3004",
